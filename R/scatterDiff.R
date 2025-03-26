@@ -21,7 +21,7 @@ scatterDiff <- function(object.list, comparison = c(1, 2),
                          arrow.size = 1, arrow.alpha = 0.8,
                         thresh = 0.05,
                         title = "Changes in Signaling Roles",
-                        label.cell = TRUE,label_size=3) {
+                        label.cell = TRUE,label.size=3) {
 
   # Global colors for cell types
 
