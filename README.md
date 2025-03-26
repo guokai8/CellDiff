@@ -38,13 +38,16 @@ ContriDiff(object.list = celllist, signaling = "TNF")
 heatDiff(celllist, comparison = c(1, 2), measure = "sender")
 
 # Visualize network differences with a chord diagram
-netDiff(celllist, comparison = c(1, 2), signaling = "TNF")
+netDiff(celllist, comparison = c(1, 2), signaling = "MIF")
+
+#
+scatterDiff(celllist, comparison = c(1, 2))
 
 # Compare sender and receiver roles between conditions
 scatterDiff2D(celllist, comparison = c(1, 2))
 
 # Create an integrated network visualization
-networkLRDiff(celllist, comparison = c(1, 2), pathways = c("TNF", "TGFb"))
+networkLRDiff(celllist, comparison = c(1, 2), pathways = c("MIF"))
 ```
 
 ### Contact
