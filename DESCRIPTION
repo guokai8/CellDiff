@@ -1,0 +1,52 @@
+Package: CellDiff
+Type: Package
+Title: Differential Analysis of Cell-Cell Communication
+Version: 0.1.1
+Date: 2025-03-20
+Authors@R: person("Kai", "Guo", email = "guokai8@gmail.com", role = c("aut", "cre"))
+Description: CellDiff provides enhanced visualizations and statistical analysis 
+    for differential cell-cell communication between experimental groups. Building 
+    upon CellChat outputs, this package focuses on comparative analysis with 
+    statistical testing and improved visualization methods for identifying biologically 
+    meaningful differences in intercellular signaling.
+License: GPLv3 LICENSE
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 4.0.0),
+    CellChat (>= 1.0.0)
+Imports:
+    ggplot2 (>= 3.3.0),
+    dplyr (>= 1.0.0),
+    tidyr (>= 1.1.0),
+    reshape2 (>= 1.4.4),
+    pheatmap (>= 1.0.12),
+    circlize (>= 0.4.12),
+    ComplexHeatmap (>= 2.6.2),
+    Seurat (>= 4.0.0),
+    igraph (>= 1.2.6),
+    ggalluvial (>= 0.12.3),
+    networkD3 (>= 0.4),
+    htmlwidgets (>= 1.5.4),
+    UpSetR (>= 1.4.0),
+    viridis (>= 0.6.2),
+    scales (>= 1.1.1),
+    grid (>= 4.0.0),
+    methods,
+    stats,
+    utils,
+    grDevices,
+    graphics,
+    purrr
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    BiocManager,
+    profvis,
+    bench
+RoxygenNote: 7.3.2
+VignetteBuilder: knitr
+biocViews:
+BugReports: https://github.com/guokai8/CellDiff/issues
+URL: https://github.com/guokai8/CellDiff
