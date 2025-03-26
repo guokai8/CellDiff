@@ -47,8 +47,7 @@ scatterDiff2D(celllist, comparison = c(1, 2))
 networkLRDiff(celllist, comparison = c(1, 2), pathways = c("TNF", "TGFb"))
 ```
 
-Contact
-For questions or issues, please contact:
-
-Your name: guokai8@gmail.com
-Create an issue on the GitHub repository: https://github.com/guokai8/CellDiff/issues
+### Contact
+For questions or issues, please contact:guokai8@gmail.com
+### Create an issue on the GitHub repository: 
+https://github.com/guokai8/CellDiff/issues
