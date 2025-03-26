@@ -2,7 +2,8 @@
 Enhances visualization and statistical analysis of cell-cell communication differences between experimental groups.
 
 CellDiff is an R package that extends the functionality of CellChat by providing specialized tools for differential cell-cell communication analysis between multiple conditions. While CellChat enables the inference and analysis of cell-cell communication networks from single-cell RNA sequencing data, CellDiff focuses on identifying and visualizing the differences in these communication patterns across biological conditions (e.g., normal vs. disease, treated vs. untreated).
-Features
+
+## Features
 
 * Differential pathway analysis: Identify signaling pathways that are significantly altered between conditions
 * Visualization of changes: Compare ligand-receptor pair contributions with customizable plots
