@@ -14,7 +14,7 @@ scatterDiff(
   thresh = 0.05,
   title = "Changes in Signaling Roles",
   label.cell = TRUE,
-  label_size = 3
+  label.size = 3
 )
 }
 \arguments{
