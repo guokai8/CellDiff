@@ -49,6 +49,8 @@ scatterDiff2D(celllist, comparison = c(1, 2))
 
 # Create an integrated network visualization
 networkLRDiff(celllist, comparison = c(1, 2), pathways = c("MIF"))
+#
+rankDiff(celllist)
 ```
 
 ### Contact
