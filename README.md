@@ -204,7 +204,7 @@ global_comparison <- compareCellChatsM(
   reference = "WT",             # Set WT as reference
   measure.type = "sender",      # Focus on sender signaling
   show.heatmap = TRUE,          # Generate heatmap
-  show.barplot = TRUE           # Generate barplot
+  show.pathway = TRUE           # Generate barplot
 )
 
 # View the results
