@@ -1,0 +1,305 @@
+---
+title: "Multi-Condition Analysis with CellDiff"
+author: "Kai Guo"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{Multi-Condition Analysis with CellDiff}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 8,
+  fig.height = 6,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+## Introduction
+
+This vignette demonstrates how to use the CellDiff package for analyzing cell-cell communication differences across multiple conditions. CellDiff extends the functionality of CellChat by providing specialized tools for comparative analysis, with a focus on identifying and visualizing significant changes in cell-cell communication patterns.
+
+We'll use the example dataset `cellchatlist` which contains three CellChat objects representing different genetic conditions: Wild Type (WT), Knockout (KO), and Double Knockout (DKO). Throughout this tutorial, we'll use WT as the reference condition.
+
+## Setup
+
+First, load the necessary packages:
+
+```{r setup}
+library(CellDiff)
+library(ggplot2)
+library(ComplexHeatmap)
+```
+
+Load the example dataset:
+
+```{r load-data}
+data(cellchatlist)
+
+# Inspect the structure of the list
+names(cellchatlist)
+```
+
+## 1. Multi-condition Pathway Comparison
+
+One of the first steps in comparing multiple conditions is to identify signaling pathways that show significant differences. CellDiff provides the `rankDiffM` function for this purpose.
+
+### Ranking Differential Pathways
+
+```{r rank-pathways}
+# Compare all conditions to WT as reference
+pathway_results <- rankDiffM(
+  object.list = cellchatlist,
+  comparison_method = "all_vs_ref",  # Compare all conditions to the reference
+  reference = "WT",                  # Set WT as reference
+  use_log2fc = TRUE,                 # Use log2 fold change for better visualization
+  comparison_plot_type = "barplot",  # Type of comparison plot (options: "barplot", "heatmap", "slope")
+  show_comparison_barplot = TRUE,    # Show faceted barplot
+  show_comparison_heatmap = TRUE,    # Show heatmap
+  show_comparison_slope = TRUE,      # Show slope plot
+  top.n = 10                         # Show top 10 differential pathways
+)
+```
+
+### Visualizing Pathway Differences
+
+The `rankDiffM` function returns various visualizations. Let's examine them:
+
+```{r pathway-viz, fig.height=8, fig.width=10}
+# Barplot showing pathway differences across conditions
+pathway_results$comparison_barplot
+
+# Heatmap showing pathway changes relative to WT
+pathway_results$comparison_heatmap
+
+# Slope plot showing pathway trends across conditions
+pathway_results$comparison_slope_plot
+```
+
+### Extracting Top Differential Pathways
+
+We can extract the top differential pathways for further analysis:
+
+```{r top-pathways}
+# Get the top differential pathways
+top_pathways <- pathway_results$top_paths
+head(top_pathways)
+
+# Examine detailed statistics for the top pathways
+pathway_stats <- pathway_results$data
+head(pathway_stats[pathway_stats$name %in% top_pathways, c("name", "fold_change", "padj", "comparison")])
+```
+
+## 2. Heatmap Visualization of Differential Signaling
+
+The `heatDiffM` function creates heatmaps showing differences in signaling patterns across cell types and pathways for multiple conditions.
+
+### Basic Heatmap Comparison
+
+```{r heatmap-basic, fig.height=8, fig.width=10}
+# Create a multi-condition heatmap comparing sender signaling
+heatmap_result <- heatDiffM(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),       # Compare all three conditions
+  reference = "WT",              # Set WT as reference
+  measure = "sender",            # Focus on sender signaling
+  use_log2fc = TRUE,             # Use log2 fold change
+  cluster_rows = TRUE,           # Cluster cell types
+  cluster_cols = TRUE,           # Cluster pathways
+  show_values = TRUE,            # Show values in cells
+  color.heatmap = c("blue", "white", "red")  # Custom colors
+)
+
+# Display the heatmap
+heatmap_result$heatmap
+```
+
+### Customized Heatmap with Selected Pathways
+
+```{r heatmap-custom, fig.height=8, fig.width=10}
+# Create a custom heatmap with specific pathways
+custom_heatmap <- heatDiffM(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),
+  reference = "WT",
+  measure = "both",             # Both sender and receiver
+  signaling = top_pathways[1:5], # Use top 5 differential pathways
+  transpose = TRUE,             # Transpose the heatmap
+  use_log2fc = TRUE,            # Use log2 fold change
+  color.heatmap = c("purple", "white", "green"),  # Custom colors
+  cluster_rows = TRUE,          # Cluster rows
+  cluster_cols = TRUE,          # Cluster columns
+  show_values = TRUE,           # Show values in cells
+  value_digits = 1              # 1 decimal place
+)
+
+# Display the heatmap
+custom_heatmap$heatmap
+```
+
+## 3. Multi-condition Scatter Plot Analysis
+
+The `scatterDiffM` and `scatterDiff2DM` functions visualize how cell types change their signaling roles across conditions.
+
+### 1D Scatter Plot Comparison
+
+```{r scatter-1d, fig.height=7, fig.width=9}
+# Compare signaling influence across conditions
+scatter_result <- scatterDiffM(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),       # Use all three conditions
+  reference = "WT",              # Set WT as reference
+  plot.type = "facet",           # Create a faceted plot
+  comparison_method = "all_vs_ref",  # Compare all to reference
+  measure.type = "influence",    # Use influence measure (sender * receiver)
+  point.size = 4,                # Larger points
+  point.alpha = 0.8,             # More opacity
+  show_group_labels = TRUE,      # Show group labels
+  label.size = 3.5               # Larger labels
+)
+
+# Display the plot
+scatter_result
+```
+
+### 2D Scatter Plot Comparison
+
+The 2D scatter plot shows changes in both sender and receiver roles:
+
+```{r scatter-2d, fig.height=7, fig.width=9}
+# For more detailed 2D visualization
+scatter_result_2d <- scatterDiff2DM(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),       # Use all three conditions
+  reference = "WT",              # Set WT as reference
+  plot.type = "facet",           # Create a faceted plot
+  comparison_method = "all_vs_ref",  # Compare all to reference
+  show.group.legend = TRUE,      # Show legend
+  convex.hull = TRUE,            # Draw convex hulls
+  highlight.cells = c("Cell1", "Cell2")  # Highlight specific cell types
+)
+
+# Display the plot
+scatter_result_2d
+```
+
+## 4. Ligand-Receptor Pair Contribution Analysis
+
+The `ContriDiffM` function examines the contributions of specific ligand-receptor pairs to signaling pathways across conditions.
+
+```{r lr-contrib, fig.height=8, fig.width=10}
+# Compare L-R pair contributions for the Pathway1 across conditions
+lr_result <- ContriDiffM(
+  object.list = cellchatlist,
+  signaling = "Pathway1",
+  reference = "WT",
+  stack.method = "side-by-side",  # Display conditions side by side
+  show.heatmap = TRUE,            # Show heatmap visualization
+  top.n = 10                      # Limit to top 10 L-R pairs
+)
+
+# Display the barplot
+lr_result$barplot
+
+# Display the heatmap
+if (!is.null(lr_result$heatmap)) {
+  lr_result$heatmap
+}
+```
+
+## 5. Finding Common and Unique Signaling Patterns
+
+The `findCommonUniquePatterns` function identifies signaling patterns that are shared across conditions or unique to specific conditions.
+
+```{r patterns}
+# Identify common and unique patterns
+patterns <- findCommonUniquePatterns(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),       # Compare all three conditions
+  min_overlap = 2,               # Minimum number of conditions to consider a pattern common
+  return_networks = TRUE         # Return full network data
+)
+
+# Examine common patterns across conditions
+head(patterns$common_patterns)
+
+# Examine unique patterns for each condition
+head(patterns$unique_patterns)
+```
+
+## 6. Advanced Network Visualization
+
+CellDiff provides two main functions for network visualization: `netDiff` for chord diagrams and `networkLRDiff` for integrated network visualizations.
+
+### Network Difference Visualization
+
+```{r netdiff, fig.height=8, fig.width=8}
+# Visualize network differences for a specific pathway
+net_diff <- netDiff(
+  object.list = cellchatlist,
+  comparison = c(1, 2),         # Compare WT and KO
+  signaling = "Pathway1",       # Focus on Pathway1 signaling
+  use_normalized = TRUE,        # Normalize networks before comparison
+  color.use = c("darkorange", "deepskyblue"),  # Custom colors
+  link_style = "bezier",        # Use bezier curves
+  highlight_sources = c("Cell1", "Cell2")  # Highlight specific sources
+)
+```
+
+### Integrated Network Visualization
+
+```{r network-lr, fig.height=8, fig.width=9}
+# Integrated network visualization
+network_viz <- networkLRDiff(
+  object.list = cellchatlist,
+  comparison = c(1, 2),         # Compare WT and KO
+  pathways = top_pathways[1:3], # Use top 3 differential pathways
+  node.size.factor = 1.2,       # Larger nodes
+  edge.width.factor = 1.5,      # Thicker edges
+  label.cell = TRUE,            # Label cell types
+  node.label.repel = TRUE,      # Avoid label overlaps
+  title = "WT vs KO Network Comparison"  # Custom title
+)
+```
+
+## 7. Comprehensive Comparison of Multiple CellChat Objects
+
+The `compareCellChatsM` function provides a global overview of changes in communication patterns across multiple conditions.
+
+```{r global-comparison, fig.height=8, fig.width=9}
+# Compare multiple CellChat objects to identify global changes
+global_comparison <- compareCellChatsM(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),      # Compare all three conditions
+  reference = "WT",             # Set WT as reference
+  measure.type = "sender",      # Focus on sender signaling
+  show.heatmap = TRUE,          # Generate heatmap
+  show.barplot = TRUE           # Generate barplot
+)
+
+# View the timeline showing changes across conditions
+global_comparison$timeline
+```
+
+## Conclusion
+
+This vignette has demonstrated how to use CellDiff for analyzing cell-cell communication differences across multiple conditions. The package provides a comprehensive set of tools for identifying and visualizing significant changes in intercellular signaling, helping researchers gain insights into the biological mechanisms underlying different experimental conditions.
+
+Key functionalities demonstrated include:
+- Identifying and ranking differential signaling pathways
+- Visualizing signaling pattern changes with heatmaps
+- Analyzing how cell types change their signaling roles
+- Examining ligand-receptor pair contributions
+- Finding common and unique signaling patterns
+- Creating network visualizations
+
+For more details about specific functions, please refer to the package documentation or visit the GitHub repository: https://github.com/guokai8/CellDiff.
