@@ -124,9 +124,8 @@ heatmap_result <- heatDiffM(
   reference = "WT",              # Set WT as reference
   measure = "sender",            # Focus on sender signaling
   use_log2fc = TRUE,             # Use log2 fold change
-  cluster_rows = TRUE,           # Cluster cell types
-  cluster_cols = TRUE,           # Cluster pathways
-  show_values = TRUE,            # Show values in cells
+  show_values = TRUE, 
+  big_heatmap=TRUE, 
   color.heatmap = c("blue", "white", "red")  # Custom colors
 )
 
@@ -142,10 +141,9 @@ scatter_result <- scatterDiffM(
   object.list = cellchat.list,
   comparison = c(1, 2, 3),       # Use all three conditions
   reference = "WT",              # Set WT as reference
-  plot.type = "facet",           # Create a faceted plot
   comparison_method = "all_vs_ref",  # Compare all to reference
   show_group_labels = TRUE,      # Show group labels
-  convex_hull = TRUE             # Draw convex hulls around groups
+  convex_hull = FALSE             # Draw convex hulls around groups
 )
 
 # For more detailed 2D visualization
@@ -153,7 +151,6 @@ scatter_result_2d <- scatterDiff2DM(
   object.list = cellchat.list,
   comparison = c(1, 2, 3),       # Use all three conditions
   reference = "WT",              # Set WT as reference
-  plot.type = "facet",           # Create a faceted plot
   comparison_method = "all_vs_ref",  # Compare all to reference
   show.group.legend = TRUE,      # Show legend
   convex.hull = TRUE,            # Draw convex hulls
@@ -167,7 +164,7 @@ scatter_result_2d <- scatterDiff2DM(
 # Compare L-R pair contributions for the TNF pathway across conditions
 lr_result <- ContriDiffM(
   object.list = cellchat.list,
-  signaling = "TNF",
+  signaling = "WNT",
   reference = "WT",
   stack.method = "side-by-side",  # Display conditions side by side
   show.heatmap = TRUE,            # Show heatmap visualization
