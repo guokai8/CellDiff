@@ -232,7 +232,6 @@ net_diff <- netDiff(
   signaling = "WNT",            # Focus on WNT signaling
   use_normalized = TRUE,        # Normalize networks before comparison
   color.use = c("darkorange", "deepskyblue"),  # Custom colors
-  link_style = "bezier",        # Use bezier curves
   highlight_sources = c("Tcell", "Bcell")  # Highlight specific sources
 )
 
