@@ -286,8 +286,6 @@ filtered_results <- rankDiffM(
 # Filter specific cell types for visualization
 specific_heatmap <- heatDiffM(
   object.list = cellchatlist,
-  sources.use = c("mySC", "ImmSC"),  # Filter sender cells
-  targets.use = c("mySC", "nmSC"),  # Filter receiver cells
   filter_zeros = TRUE,          # Filter out pathways with no signal
   filter_thresh = 0.1           # Minimum signal threshold
 )
