@@ -137,14 +137,14 @@ print(heatmap_result$heatmap)
 
 ```r
 # Compare sender-receiver roles across conditions
-scatter_result <- scatterDiffM(
-  object.list = cellchatlist,
-  comparison = c(1, 2, 3),       # Use all three conditions
-  reference = "WT",              # Set WT as reference
-  comparison_method = "all_vs_ref",  # Compare all to reference
-  show_group_labels = TRUE,      # Show group labels
-  convex_hull = FALSE             # Draw convex hulls around groups
-)
+#scatter_result <- scatterDiffM(
+ # object.list = cellchatlist,
+#  comparison = c(1, 2, 3),       # Use all three conditions
+#  reference = "WT",              # Set WT as reference
+#  comparison_method = "all_vs_ref",  # Compare all to reference
+#  show_group_labels = TRUE,      # Show group labels
+#  convex_hull = FALSE             # Draw convex hulls around groups
+#)
 
 # For more detailed 2D visualization
 scatter_result_2d <- scatterDiff2DM(
@@ -153,8 +153,16 @@ scatter_result_2d <- scatterDiff2DM(
   reference = "WT",              # Set WT as reference
   comparison_method = "all_vs_ref",  # Compare all to reference
   show.group.legend = TRUE,      # Show legend
+  convex.hull = TRUE            # Draw convex hull
+)
+scatter_result_2d <- scatterDiff2DM(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),       # Use all three conditions
+  reference = "WT",              # Set WT as reference
+  comparison_method = "all_vs_ref",  # Compare all to reference
+  show.group.legend = TRUE,      # Show legend
   convex.hull = TRUE,            # Draw convex hulls
-  highlight.cells = c("Tcell", "Bcell")  # Highlight specific cell types
+  highlight.cells = c("Endo", "Mac", "ImmSC")  # Highlight specific cell types
 )
 ```
 
