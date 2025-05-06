@@ -85,7 +85,7 @@ CellDiff provides specialized functions for comparing cell-cell communication ac
 
 ```r
 # First, create a named list of CellChat objects
-cellchat.list <- data("cellchatlist")
+cellchatlist <- data("cellchatlist")
 
 # Set WT as the reference
 reference <- 1  # Or use the name: reference = "WT"
@@ -96,7 +96,7 @@ reference <- 1  # Or use the name: reference = "WT"
 ```r
 # Compare signaling pathway differences across all conditions
 pathway_results <- rankDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison_method = "all_vs_ref",  # Compare all conditions to the reference
   reference = "WT",                  # Set WT as reference
   use_log2fc = TRUE,                 # Use log2 fold change for better visualization
@@ -119,7 +119,7 @@ top_pathways <- pathway_results$top_paths
 ```r
 # Create a multi-condition heatmap comparing sender signaling
 heatmap_result <- heatDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2, 3),       # Compare all three conditions
   reference = "WT",              # Set WT as reference
   measure = "sender",            # Focus on sender signaling
@@ -138,7 +138,7 @@ print(heatmap_result$heatmap)
 ```r
 # Compare sender-receiver roles across conditions
 scatter_result <- scatterDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2, 3),       # Use all three conditions
   reference = "WT",              # Set WT as reference
   comparison_method = "all_vs_ref",  # Compare all to reference
@@ -148,7 +148,7 @@ scatter_result <- scatterDiffM(
 
 # For more detailed 2D visualization
 scatter_result_2d <- scatterDiff2DM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2, 3),       # Use all three conditions
   reference = "WT",              # Set WT as reference
   comparison_method = "all_vs_ref",  # Compare all to reference
@@ -163,7 +163,7 @@ scatter_result_2d <- scatterDiff2DM(
 ```r
 # Compare L-R pair contributions for the TNF pathway across conditions
 lr_result <- ContriDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   signaling = "WNT",
   reference = "WT",
   stack.method = "side-by-side",  # Display conditions side by side
@@ -181,7 +181,7 @@ lr_result$heatmap
 ```r
 # Identify signaling patterns that are common or unique across conditions
 patterns <- findCommonUniquePatterns(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2, 3),       # Compare all three conditions
   min_overlap = 2,               # Minimum number of conditions to consider a pattern common
   return_networks = TRUE         # Return full network data
@@ -199,12 +199,12 @@ head(patterns$unique_patterns)
 ```r
 # Compare multiple CellChat objects to identify global changes
 global_comparison <- compareCellChatsM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2, 3),      # Compare all three conditions
   reference = "WT",             # Set WT as reference
   measure.type = "sender",      # Focus on sender signaling
   show.heatmap = TRUE,          # Generate heatmap
-  show.pathway = TRUE           # Generate barplot
+  show.barplot = TRUE           # Generate barplot
 )
 
 # View the results
@@ -219,7 +219,7 @@ global_comparison$heatmap   # Heatmap of differences
 ```r
 # Visualize network differences for a specific pathway
 net_diff <- netDiff(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2),         # Compare first two conditions
   signaling = "WNT",            # Focus on WNT signaling
   use_normalized = TRUE,        # Normalize networks before comparison
@@ -230,7 +230,7 @@ net_diff <- netDiff(
 
 # Integrated network visualization showing pathways, cells, and LR pairs
 network_viz <- networkLRDiff(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2),         # Compare first two conditions
   pathways = top_pathways[1:3], # Use top differential pathways
   node.size.factor = 1.2,       # Larger nodes
@@ -245,7 +245,7 @@ network_viz <- networkLRDiff(
 ```r
 # Create a custom heatmap with specific pathways
 custom_heatmap <- heatDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison = c(1, 2, 3),
   reference = "WT",
   measure = "both",             # Both sender and receiver
@@ -270,7 +270,7 @@ For large datasets with many cell types or pathways, CellDiff provides options t
 ```r
 # Filter to include only significant pathways
 filtered_results <- rankDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   pThresh = 0.01,               # Stricter p-value threshold
   filter_min_change = 0.5,      # Higher fold change threshold
   top.n = 15                    # Limit to top 15 pathways
@@ -278,7 +278,7 @@ filtered_results <- rankDiffM(
 
 # Filter specific cell types for visualization
 specific_heatmap <- heatDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   sources.use = c("Tcell", "Bcell", "Mono"),  # Filter sender cells
   targets.use = c("Fibroblast", "Endothelial"),  # Filter receiver cells
   filter_zeros = TRUE,          # Filter out pathways with no signal
@@ -293,7 +293,7 @@ specific_heatmap <- heatDiffM(
 ```r
 # Get detailed information about differential pathways
 pathway_data <- rankDiffM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison_method = "all_vs_ref",
   reference = "WT",
   return_top_paths = TRUE,
@@ -313,7 +313,7 @@ print(pathway_stats[pathway_stats$name %in% pathway_data$top_paths, ])
 ```r
 # Analyze how cell types change their roles
 role_changes <- scatterDiff2DM(
-  object.list = cellchat.list,
+  object.list = cellchatlist,
   comparison_method = "all_vs_ref",
   reference = "WT",
   return_data = TRUE
@@ -335,26 +335,26 @@ print(quadrant_changes)
 For multiple group comparisons, you can specify a reference using either the index or name:
 ```r
 # By index (position in the list)
-rankDiffM(object.list = cellchat.list, reference = 1)
+rankDiffM(object.list = cellchatlist, reference = 1)
 
 # By name (if your list has named elements)
-rankDiffM(object.list = cellchat.list, reference = "WT")
+rankDiffM(object.list = cellchatlist, reference = "WT")
 ```
 
 ### How can I compare specific conditions within a larger dataset?
 Use the `comparison` parameter to select specific conditions:
 ```r
 # Compare only WT and DKO (assuming positions 1 and 3)
-heatDiffM(object.list = cellchat.list, comparison = c(1, 3))
+heatDiffM(object.list = cellchatlist, comparison = c(1, 3))
 
 # Or by name
-heatDiffM(object.list = cellchat.list, comparison = c("WT", "DKO"))
+heatDiffM(object.list = cellchatlist, comparison = c("WT", "DKO"))
 ```
 
 ### How do I find the most significant pathway differences?
 ```r
 # Use rankDiffM and extract top pathways
-results <- rankDiffM(object.list = cellchat.list)
+results <- rankDiffM(object.list = cellchatlist)
 top_paths <- results$top_paths
 ```
 
@@ -362,7 +362,7 @@ top_paths <- results$top_paths
 Many functions have a `return_data = TRUE` option that provides the underlying data:
 ```r
 # Get data for further processing
-heatmap_data <- heatDiffM(object.list = cellchat.list, return_data = TRUE)
+heatmap_data <- heatDiffM(object.list = cellchatlist, return_data = TRUE)
 write.csv(heatmap_data$diff_matrix, "differential_heatmap_data.csv")
 ```
 
