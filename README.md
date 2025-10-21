@@ -15,12 +15,14 @@ CellDiff is an R package that extends the functionality of [CellChat](https://gi
 ## Features
 
 * **Multi-group comparison**: Compare cell-cell communication across multiple conditions simultaneously
+* **Flexible comparison methods**: Support for all-vs-all, all-vs-reference, and custom pairwise comparisons
 * **Differential pathway analysis**: Identify signaling pathways that are significantly altered between conditions
-* **Visualization of changes**: Compare ligand-receptor pair contributions with customizable plots
-* **Heatmap visualization**: Visualize differential signaling patterns across cell types and pathways
-* **Network visualization**: Generate chord diagrams showing changes in cell-cell communication
+* **Rich visualizations**: Venn diagrams, UpSet plots, heatmaps, network graphs, and timeline plots
+* **Ligand-receptor analysis**: Compare L-R pair contributions with customizable plots and heatmaps
+* **Pattern discovery**: Identify common and unique signaling patterns across conditions
 * **Sender-receiver analysis**: Analyze how cells change their roles as signaling senders or receivers
-* **Integrated network visualization**: Create comprehensive networks showing pathways, cells, and ligand-receptor pairs
+* **Integrated visualizations**: ComplexHeatmap integration with consistent color schemes
+* **No external dependencies on dplyr/tidyr**: Pure base R + specialized visualization packages
 
 ## Installation
 
@@ -38,14 +40,56 @@ devtools::install_github("guokai8/CellDiff")
 CellDiff requires the following packages:
 - CellChat (>= 1.1.0)
 - ggplot2
-- dplyr
-- tidyr
 - reshape2
 - circlize
 - ComplexHeatmap
 - cowplot
 - igraph
 - ggrepel
+- scales
+- VennDetail (optional, for Venn diagrams)
+- grid
+
+## What's New in Version 0.1.3
+
+### Major Improvements
+
+1. **Custom Pairwise Comparisons**
+   - `rankDiffM`, `heatDiffM`, `scatterDiff2DM`, and `ContriDiffM` now support `comparison_method = "custom_pairs"`
+   - Specify exactly which condition pairs to compare: `custom_comparisons = list(c("WT", "KO"), c("KO", "DKO"))`
+   - Generates focused visualizations for your specific comparisons of interest
+
+2. **Enhanced findCommonUniquePatterns**
+   - **NEW**: Venn diagram visualization using VennDetail (up to 7 conditions)
+   - **NEW**: UpSet plot for complex multi-way intersections
+   - **NEW**: Barplot showing total, unique, and common pattern counts
+   - **NEW**: Network visualization of top signaling interactions
+   - Identifies patterns that are shared or unique across conditions
+
+3. **Improved compareCellChatsM**
+   - **FIXED**: Replaced pheatmap with ComplexHeatmap for consistency
+   - **FIXED**: Removed dplyr dependency - uses pure base R
+   - **NEW**: Enhanced timeline plots with optional labeling
+   - **NEW**: Pathway contribution timeline with labeling support
+   - Better color consistency across all visualizations
+
+4. **rankDiffM Enhancements**
+   - **NEW**: `comparison_barplot` and `comparison_heatmap` now work with `custom_pairs`
+   - Creates faceted visualizations showing each custom comparison
+   - Slope plot remains exclusive to `all_vs_ref` (by design)
+
+5. **Bug Fixes**
+   - Fixed RStudio display issues in `heatDiffM` (changed `invisible()` to `return()`)
+   - Fixed custom_pairs index conversion in all multi-condition functions
+   - Fixed missing `scPalette()` reference (replaced with `assignColors()`)
+   - Fixed width/height swap in big_heatmap mode
+
+### Migration Notes
+
+- **No breaking changes** - all existing code will continue to work
+- `pheatmap` dependency removed in favor of `ComplexHeatmap`
+- `dplyr` and `tidyr` are no longer required
+- VennDetail is optional (only needed for `findCommonUniquePatterns` Venn diagrams)
 
 ## Quick Start
 
@@ -112,6 +156,23 @@ pathway_results$comparison_slope_plot
 
 # Get the top differential pathways
 top_pathways <- pathway_results$top_paths
+
+# Use custom pairs for specific comparisons
+pathway_custom <- rankDiffM(
+  object.list = cellchatlist,
+  comparison_method = "custom_pairs",
+  custom_comparisons = list(
+    c("WT", "KO"),
+    c("KO", "DKO"),
+    c("WT", "DKO")
+  ),
+  show_comparison_barplot = TRUE,
+  show_comparison_heatmap = TRUE
+)
+
+# View custom comparison results
+pathway_custom$comparison_barplot  # Shows all custom pairs
+pathway_custom$comparison_heatmap  # Heatmap of custom comparisons
 ```
 
 #### Multi-condition Heatmap Visualization
@@ -124,13 +185,37 @@ heatmap_result <- heatDiffM(
   reference = "WT",              # Set WT as reference
   measure = "sender",            # Focus on sender signaling
   use_log2fc = TRUE,             # Use log2 fold change
-  show_values = TRUE, 
-  big_heatmap=TRUE, 
+  show_values = TRUE,
+  big_heatmap = TRUE,
   color.heatmap = c("blue", "white", "red")  # Custom colors
 )
 
-# The function returns a list with visualization and data
-print(heatmap_result$heatmap)
+# The heatmap will display in RStudio automatically
+# To save to PDF:
+pdf("heatmap_output.pdf", width = 15, height = 8)
+ComplexHeatmap::draw(heatmap_result)
+dev.off()
+```
+
+#### Custom Comparison Pairs
+
+```r
+# Compare specific condition pairs (e.g., WT vs KO, KO vs DKO, WT vs DKO)
+heatmap_custom <- heatDiffM(
+  object.list = cellchatlist,
+  comparison = c(1, 2, 3),
+  comparison_method = "custom_pairs",
+  custom_comparisons = list(
+    c("WT", "KO"),    # First comparison
+    c("KO", "DKO"),   # Second comparison
+    c("WT", "DKO")    # Third comparison
+  ),
+  measure = "sender",
+  use_log2fc = TRUE,
+  show_values = TRUE,
+  big_heatmap = TRUE,
+  color.heatmap = c("blue", "white", "red")
+)
 ```
 
 #### Multi-condition Scatter Plot Analysis
@@ -169,7 +254,7 @@ scatter_result_2d <- scatterDiff2DM(
 #### L-R Pair Contribution Analysis
 
 ```r
-# Compare L-R pair contributions for the TNF pathway across conditions
+# Compare L-R pair contributions for the WNT pathway across conditions
 lr_result <- ContriDiffM(
   object.list = cellchatlist,
   signaling = "WNT",
@@ -182,17 +267,37 @@ lr_result <- ContriDiffM(
 # The function returns a list of plots
 lr_result$barplot
 lr_result$heatmap
+
+# Use custom pairs for L-R contribution analysis
+lr_custom <- ContriDiffM(
+  object.list = cellchatlist,
+  signaling = "WNT",
+  comparison_method = "custom_pairs",
+  custom_comparisons = list(
+    c("WT", "KO"),
+    c("KO", "DKO")
+  ),
+  show.heatmap = TRUE,
+  top.n = 10
+)
 ```
 
 #### Finding Common and Unique Signaling Patterns
 
 ```r
 # Identify signaling patterns that are common or unique across conditions
+# With comprehensive visualizations
 patterns <- findCommonUniquePatterns(
   object.list = cellchatlist,
   comparison = c(1, 2, 3),       # Compare all three conditions
   min_overlap = 2,               # Minimum number of conditions to consider a pattern common
-  return_networks = TRUE         # Return full network data
+  show.venn = TRUE,              # Show Venn diagram (default)
+  show.upset = TRUE,             # Show UpSet plot
+  show.barplot = TRUE,           # Show pattern count barplot
+  show.network = TRUE,           # Show network visualization
+  return_networks = TRUE,        # Return full network data
+  return.data = TRUE,            # Return underlying data
+  top.n = 20                     # Top 20 patterns for network
 )
 
 # Examine common patterns across conditions
@@ -200,6 +305,15 @@ head(patterns$common_patterns)
 
 # Examine unique patterns for each condition
 head(patterns$unique_patterns)
+
+# View visualizations
+patterns$plots$venn         # Venn diagram showing overlaps
+patterns$plots$upset        # UpSet plot for complex intersections
+patterns$plots$barplot      # Pattern counts per condition
+patterns$plots$network_graph # Network of top interactions
+
+# Access the VennDetail object for further analysis
+venn_obj <- patterns$plots$venn_object
 ```
 
 #### Comparing Multiple Cell-Cell Communications
@@ -211,13 +325,23 @@ global_comparison <- compareCellChatsM(
   comparison = c(1, 2, 3),      # Compare all three conditions
   reference = "WT",             # Set WT as reference
   measure.type = "sender",      # Focus on sender signaling
-  show.heatmap = TRUE,          # Generate heatmap
-  show.barplot = TRUE           # Generate barplot
+  norm.method = "z-score",      # Normalize with z-score
+  show.pathway = TRUE,          # Show pathway contributions
+  show.heatmap = TRUE,          # Generate heatmap (ComplexHeatmap)
+  label.timeline = TRUE,        # Add labels to timeline
+  label.pathway = TRUE,         # Add labels to pathway plot
+  label.top = 5,                # Label top 5 per condition
+  return.data = TRUE            # Return underlying data
 )
 
 # View the results
-global_comparison$timeline  # Changes in signaling across conditions
-global_comparison$heatmap   # Heatmap of differences
+global_comparison$timeline  # Timeline plot of signaling changes
+global_comparison$pathway   # Pathway contribution changes
+global_comparison$heatmap   # ComplexHeatmap with cell type annotations
+
+# Access the underlying data
+global_comparison$data$scores              # Signaling scores per condition
+global_comparison$data$celltype_colors     # Consistent color scheme
 ```
 
 ### 2. Advanced Visualization Techniques

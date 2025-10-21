@@ -31,6 +31,10 @@
 #' @param show.heatmap Logical, whether to show a heatmap visualization in addition to the bar plot (default: FALSE)
 #' @param filter.min.contrib Numeric, minimum contribution to include an L-R pair in the visualization (default: 0)
 #' @param top.n Integer, limit visualization to top N L-R pairs by contribution (default: NULL, shows all)
+#' @param comparison_method Character, method for comparing groups: "all" (all groups in comparison),
+#'   "all_vs_ref" (each group vs reference), or "custom_pairs" (specified pairs).
+#' @param custom_comparisons List of custom comparison pairs (required when comparison_method = "custom_pairs").
+#'   Each element should be a vector of length 2 containing either indices or names of conditions to compare.
 #'
 #' @return If return.data = FALSE, returns a list of ggplot objects. If return.data = TRUE, returns a list with:
 #' \itemize{
@@ -82,6 +86,14 @@
 #' lr_data <- result$LR.contribution
 #' top_contributors <- head(lr_data[order(lr_data$contribution, decreasing = TRUE), ], 5)
 #'
+#' # Use custom pairs comparison
+#' ContriDiffM(
+#'   object.list = cellchat.list,
+#'   signaling = "TGFb",
+#'   comparison_method = "custom_pairs",
+#'   custom_comparisons = list(c("Normal", "Severe"), c("Mild", "Severe"))
+#' )
+#'
 #' @importFrom ggplot2 ggplot aes geom_bar scale_fill_manual theme_classic theme element_text xlab ylab coord_flip ggtitle
 #' @importFrom cowplot ggdraw draw_label plot_grid
 #' @importFrom reshape2 melt dcast
@@ -97,7 +109,12 @@ ContriDiffM <- function(object.list, signaling, comparison = NULL, signaling.nam
                         color.use = NULL, stack.method = "side-by-side",
                         reference = 1, show.reference = TRUE,
                         normalize = TRUE, show.heatmap = FALSE,
-                        filter.min.contrib = 0, top.n = NULL) {
+                        filter.min.contrib = 0, top.n = NULL,
+                        comparison_method = c("all", "all_vs_ref", "custom_pairs"),
+                        custom_comparisons = NULL) {
+
+  # Match arguments
+  comparison_method <- match.arg(comparison_method)
 
   # If comparison is NULL, use all objects
   if (is.null(comparison)) {
@@ -128,6 +145,45 @@ ContriDiffM <- function(object.list, signaling, comparison = NULL, signaling.nam
   if (!reference %in% comparison) {
     warning("Reference index not in comparison indices. Using first index in comparison.")
     reference <- comparison[1]
+  }
+
+  # Handle custom_pairs comparison method
+  if (comparison_method == "custom_pairs") {
+    # Use custom comparison pairs
+    if (is.null(custom_comparisons) || !is.list(custom_comparisons)) {
+      stop("For custom_pairs comparison method, please provide a list of comparison pairs")
+    }
+
+    # Validate and extract unique indices from custom comparisons
+    unique_indices <- c()
+    for (i in 1:length(custom_comparisons)) {
+      pair <- custom_comparisons[[i]]
+      if (length(pair) != 2) {
+        stop(paste("Each comparison pair must have exactly 2 elements. Pair", i, "has",
+                   length(pair), "element(s)"))
+      }
+
+      # Convert names to indices if needed
+      if (is.character(pair)) {
+        if (!all(pair %in% names(object.list))) {
+          stop(paste("Invalid condition name(s) in pair", i))
+        }
+        pair <- match(pair, names(object.list))
+      }
+
+      # Check if indices are valid
+      if (!all(pair %in% comparison)) {
+        stop(paste("Indices in pair", i, "must be in the comparison vector"))
+      }
+
+      unique_indices <- c(unique_indices, pair)
+    }
+
+    # Update comparison to only include indices that are in custom pairs
+    comparison <- unique(unique_indices)
+    comparison <- sort(comparison)
+
+    message(paste("Using custom pairs comparison. Processing", length(comparison), "unique conditions."))
   }
 
   # If group.names is NULL, try to use the names from the list

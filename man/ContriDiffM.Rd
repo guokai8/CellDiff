@@ -26,7 +26,9 @@ ContriDiffM(
   normalize = TRUE,
   show.heatmap = FALSE,
   filter.min.contrib = 0,
-  top.n = NULL
+  top.n = NULL,
+  comparison_method = c("all", "all_vs_ref", "custom_pairs"),
+  custom_comparisons = NULL
 )
 }
 \arguments{
@@ -78,6 +80,12 @@ If NULL (default), all objects will be compared.}
 \item{filter.min.contrib}{Numeric, minimum contribution to include an L-R pair in the visualization (default: 0)}
 
 \item{top.n}{Integer, limit visualization to top N L-R pairs by contribution (default: NULL, shows all)}
+
+\item{comparison_method}{Character, method for comparing groups: "all" (all groups in comparison),
+"all_vs_ref" (each group vs reference), or "custom_pairs" (specified pairs).}
+
+\item{custom_comparisons}{List of custom comparison pairs (required when comparison_method = "custom_pairs").
+Each element should be a vector of length 2 containing either indices or names of conditions to compare.}
 }
 \value{
 If return.data = FALSE, returns a list of ggplot objects. If return.data = TRUE, returns a list with:
@@ -134,5 +142,13 @@ result <- ContriDiffM(
 )
 lr_data <- result$LR.contribution
 top_contributors <- head(lr_data[order(lr_data$contribution, decreasing = TRUE), ], 5)
+
+# Use custom pairs comparison
+ContriDiffM(
+  object.list = cellchat.list,
+  signaling = "TGFb",
+  comparison_method = "custom_pairs",
+  custom_comparisons = list(c("Normal", "Severe"), c("Mild", "Severe"))
+)
 
 }

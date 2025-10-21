@@ -275,8 +275,7 @@ heatDiff <- function(object.list, comparison = c(1, 2),
 
   # Set cell type colors for annotation
   if (is.null(color.use)) {
-    color.use <- scPalette(length(rownames(diff_matrix)))
-    names(color.use) <- rownames(diff_matrix)
+    color.use <- assignColors(rownames(diff_matrix))
   }
 
   # Create title with measure description

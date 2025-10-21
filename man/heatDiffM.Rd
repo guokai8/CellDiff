@@ -42,7 +42,8 @@ heatDiffM(
   highlight_reference = TRUE,
   show_condition_names = TRUE,
   show_annotation = c("both", "row", "column", "none"),
-  comparison_method = c("all_vs_ref", "all_vs_all"),
+  comparison_method = c("all_vs_ref", "all_vs_all", "custom_pairs"),
+  custom_comparisons = NULL,
   big_heatmap = FALSE
 )
 }
@@ -127,8 +128,11 @@ or just the heatmap object (FALSE).}
 
 \item{show_annotation}{Character, type of annotation to show: "both", "row", "column", or "none".}
 
-\item{comparison_method}{Character, method for comparing conditions: "all_vs_ref" (all vs. reference) or
-"all_vs_all" (pairwise comparisons between all conditions).}
+\item{comparison_method}{Character, method for comparing conditions: "all_vs_ref" (all vs. reference),
+"all_vs_all" (pairwise comparisons between all conditions), or "custom_pairs" (specified pairs).}
+
+\item{custom_comparisons}{List of custom comparison pairs (required when comparison_method = "custom_pairs").
+Each element should be a vector of length 2 containing either indices or names of conditions to compare.}
 
 \item{big_heatmap}{Logical, whether to create a single big heatmap with side-by-side comparisons (default: FALSE).}
 }

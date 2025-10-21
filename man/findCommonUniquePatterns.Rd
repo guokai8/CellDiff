@@ -10,7 +10,15 @@ findCommonUniquePatterns(
   pathways = NULL,
   thresh = 0.05,
   min_overlap = 2,
-  return_networks = FALSE
+  return_networks = FALSE,
+  show.venn = TRUE,
+  show.upset = FALSE,
+  show.network = FALSE,
+  show.barplot = FALSE,
+  return.data = FALSE,
+  venn.colors = NULL,
+  network.layout = "fr",
+  top.n = 20
 )
 }
 \arguments{
@@ -25,9 +33,25 @@ findCommonUniquePatterns(
 \item{min_overlap}{Minimum number of conditions a pattern must appear in to be considered common}
 
 \item{return_networks}{Whether to return the full network data}
+
+\item{show.venn}{Logical, whether to create Venn diagram visualization (default: TRUE)}
+
+\item{show.upset}{Logical, whether to create UpSet plot visualization (default: FALSE)}
+
+\item{show.network}{Logical, whether to create network visualization (default: FALSE)}
+
+\item{show.barplot}{Logical, whether to create barplot of pattern counts (default: FALSE)}
+
+\item{return.data}{Logical, whether to return data along with visualizations (default: FALSE)}
+
+\item{venn.colors}{Vector of colors for Venn diagram (NULL for default)}
+
+\item{network.layout}{Layout algorithm for network plot (default: "fr")}
+
+\item{top.n}{Integer, number of top patterns to display in network (default: 20)}
 }
 \value{
-List of common and unique signaling patterns
+List of common and unique signaling patterns, optionally with visualizations
 }
 \description{
 This function identifies signaling patterns that are common across all conditions,

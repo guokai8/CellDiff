@@ -248,7 +248,10 @@ scatterDiff2DM <- function(object.list, comparison = NULL, reference = NULL,
         stop(paste("Indices in pair", i, "must be in the comparison vector"))
       }
 
-      comparison_pairs[[i]] <- pair
+      # Convert object indices to positions within comparison vector
+      pos1 <- which(comparison == pair[1])
+      pos2 <- which(comparison == pair[2])
+      comparison_pairs[[i]] <- c(pos1, pos2)
     }
   }
 
@@ -785,41 +788,65 @@ createScatterPlot2D <- function(data1, data2, arrows_data,
     # Add quadrant labels
     if (!use_facets) {
       # For non-faceted plots, add quadrant labels
+      # Get data range
       x_range <- range(c(arrows_data$x, arrows_data$xend), na.rm = TRUE)
       y_range <- range(c(arrows_data$y, arrows_data$yend), na.rm = TRUE)
+
+      # Calculate expanded range for label positioning (at plot boundaries)
+      x_span <- diff(x_range)
+      y_span <- diff(y_range)
+
+      # Position labels at the corners (using Inf/-Inf will place them at plot limits)
+      # We'll use a small offset from the edges
+      label_offset_x <- x_span * 0.02  # 2% offset from edge
+      label_offset_y <- y_span * 0.02
+
+      # Calculate positions in actual plot space
+      x_max_pos <- max(x_range) + x_span * 0.25  # Extend 25% beyond data
+      x_min_pos <- min(x_range) - x_span * 0.25
+      y_max_pos <- max(y_range) + y_span * 0.25
+      y_min_pos <- min(y_range) - y_span * 0.25
 
       p <- p +
         ggplot2::annotate(
           "text",
-          x = max(x_range) * 0.95,
-          y = max(y_range) * 0.95,
+          x = x_max_pos,
+          y = y_max_pos,
           label = "High sender\nHigh receiver",
           size = quadrant.label.size,
-          alpha = quadrant.label.alpha
+          alpha = quadrant.label.alpha,
+          hjust = 1,  # Right-aligned
+          vjust = 1   # Top-aligned
         ) +
         ggplot2::annotate(
           "text",
-          x = min(x_range) * 0.95,
-          y = max(y_range) * 0.95,
+          x = x_min_pos,
+          y = y_max_pos,
           label = "Low sender\nHigh receiver",
           size = quadrant.label.size,
-          alpha = quadrant.label.alpha
+          alpha = quadrant.label.alpha,
+          hjust = 0,  # Left-aligned
+          vjust = 1   # Top-aligned
         ) +
         ggplot2::annotate(
           "text",
-          x = min(x_range) * 0.95,
-          y = min(y_range) * 0.95,
+          x = x_min_pos,
+          y = y_min_pos,
           label = "Low sender\nLow receiver",
           size = quadrant.label.size,
-          alpha = quadrant.label.alpha
+          alpha = quadrant.label.alpha,
+          hjust = 0,  # Left-aligned
+          vjust = 0   # Bottom-aligned
         ) +
         ggplot2::annotate(
           "text",
-          x = max(x_range) * 0.95,
-          y = min(y_range) * 0.95,
+          x = x_max_pos,
+          y = y_min_pos,
           label = "High sender\nLow receiver",
           size = quadrant.label.size,
-          alpha = quadrant.label.alpha
+          alpha = quadrant.label.alpha,
+          hjust = 1,  # Right-aligned
+          vjust = 0   # Bottom-aligned
         )
     }
   }

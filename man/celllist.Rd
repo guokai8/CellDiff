@@ -3,7 +3,7 @@
 \docType{data}
 \name{celllist}
 \alias{celllist}
-\title{Example CellChat objects dataset}
+\title{Original example CellChat objects dataset with two conditions}
 \format{
 A named list with 2 CellChat objects:
 \describe{
@@ -27,6 +27,7 @@ Each CellChat object contains various slots including:
 \itemize{
   \item{idents}{Cell type identities}
   \item{net}{Communication network information}
+  \item{netP}{Pathway-level communication network information}
   \item{LR}{Ligand-receptor pair information}
   \item{DB}{Database of interactions}
 }
@@ -35,7 +36,8 @@ These CellChat objects have been processed with the standard CellChat workflow:
 1. Created from single-cell expression data
 2. Identification of overexpressed ligands/receptors
 3. Inference of cell-cell communication network
-4. Network analysis
+4. Computation of network centrality scores
+5. Aggregation of network at the pathway level
 }
 \examples{
 # Load the example data

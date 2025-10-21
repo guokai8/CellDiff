@@ -47,8 +47,10 @@
 #' @param highlight_reference Logical, whether to highlight the reference condition (default: TRUE).
 #' @param show_condition_names Logical, whether to display condition names (default: TRUE).
 #' @param show_annotation Character, type of annotation to show: "both", "row", "column", or "none".
-#' @param comparison_method Character, method for comparing conditions: "all_vs_ref" (all vs. reference) or
-#'   "all_vs_all" (pairwise comparisons between all conditions).
+#' @param comparison_method Character, method for comparing conditions: "all_vs_ref" (all vs. reference),
+#'   "all_vs_all" (pairwise comparisons between all conditions), or "custom_pairs" (specified pairs).
+#' @param custom_comparisons List of custom comparison pairs (required when comparison_method = "custom_pairs").
+#'   Each element should be a vector of length 2 containing either indices or names of conditions to compare.
 #' @param big_heatmap Logical, whether to create a single big heatmap with side-by-side comparisons (default: FALSE).
 #'
 #' @return If return_data=TRUE, returns a list containing:
@@ -112,7 +114,8 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
                       split_heatmap = FALSE, highlight_reference = TRUE,
                       show_condition_names = TRUE,
                       show_annotation = c("both", "row", "column", "none"),
-                      comparison_method = c("all_vs_ref", "all_vs_all"),
+                      comparison_method = c("all_vs_ref", "all_vs_all", "custom_pairs"),
+                      custom_comparisons = NULL,
                       big_heatmap = FALSE) {
 
   # Match arguments
@@ -350,6 +353,67 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
                                                  condition_names[comparison[i]])
       }
     }
+  } else if (comparison_method == "custom_pairs") {
+    # Use custom comparison pairs
+    if (is.null(custom_comparisons) || !is.list(custom_comparisons)) {
+      stop("For custom_pairs comparison method, please provide a list of comparison pairs")
+    }
+
+    # Validate and process custom comparisons
+    comparison_pairs <- list()
+    for (i in 1:length(custom_comparisons)) {
+      pair <- custom_comparisons[[i]]
+      if (length(pair) != 2) {
+        stop(paste("Each comparison pair must have exactly 2 elements. Pair", i, "has",
+                   length(pair), "element(s)"))
+      }
+
+      # Convert names to indices if needed
+      if (is.character(pair)) {
+        if (!all(pair %in% names(object.list))) {
+          stop(paste("Invalid condition name(s) in pair", i))
+        }
+        pair <- match(pair, names(object.list))
+      }
+
+      # Check if indices are valid
+      if (!all(pair %in% comparison)) {
+        stop(paste("Indices in pair", i, "must be in the comparison vector"))
+      }
+
+      # Convert object indices to positions within comparison vector
+      pos1 <- which(comparison == pair[1])
+      pos2 <- which(comparison == pair[2])
+      comparison_pairs[[i]] <- c(pos1, pos2)
+    }
+
+    # Calculate differences for custom pairs
+    for (p in 1:length(comparison_pairs)) {
+      pair <- comparison_pairs[[p]]
+      # pair now contains positions in the comparison vector
+      idx1 <- pair[1]
+      idx2 <- pair[2]
+
+      if (use_log2fc) {
+        # Calculate log2 fold change with pseudocount
+        pseudo_count <- 0.01
+        diff_mat <- log2((data_norm_list[[idx2]] + pseudo_count) /
+                           (data_norm_list[[idx1]] + pseudo_count))
+        # Cap extreme values
+        cap_value <- 3
+        diff_mat[diff_mat > cap_value] <- cap_value
+        diff_mat[diff_mat < -cap_value] <- -cap_value
+        diff_mat[is.infinite(diff_mat)] <- NA
+      } else {
+        # Simple difference
+        diff_mat <- data_norm_list[[idx2]] - data_norm_list[[idx1]]
+      }
+
+      diff_matrices[[p]] <- diff_mat
+      comparison_labels[[p]] <- paste(condition_names[comparison[idx2]],
+                                      "vs.",
+                                      condition_names[comparison[idx1]])
+    }
   }
 
   # Check if any difference matrices were created
@@ -389,6 +453,17 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
       color.use <- rainbow(length(cell.types))
     }
     names(color.use) <- cell.types
+  } else {
+    # Ensure color.use has names even if user provided it
+    if (is.null(names(color.use))) {
+      if (length(color.use) >= length(cell.types)) {
+        names(color.use) <- cell.types
+      } else {
+        warning("color.use has fewer colors than cell types. Extending with rainbow colors.")
+        color.use <- c(color.use, rainbow(length(cell.types) - length(color.use)))
+        names(color.use) <- cell.types
+      }
+    }
   }
 
   # Create title with measure description
@@ -421,20 +496,42 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
 
     # Calculate a global legend break for consistent colors across all heatmaps
     all_values <- unlist(lapply(diff_matrices, function(x) as.vector(x)))
-    min_val <- min(all_values, na.rm = TRUE)
-    max_val <- max(all_values, na.rm = TRUE)
+    all_values <- all_values[!is.na(all_values)]  # Remove NA values
 
-    # Create symmetric breaks around zero for divergent color scale
-    if (min_val < 0 && max_val > 0) {
-      abs_max <- max(abs(min_val), abs(max_val))
-      legend_break <- c(-abs_max, 0, abs_max)
+    # Check if we have valid values
+    if (length(all_values) == 0) {
+      warning("All difference values are NA. Using default legend breaks.")
+      legend_break <- c(-1, 0, 1)
     } else {
-      # If all values are positive or all negative
-      legend_break <- c(min_val, (min_val + max_val)/2, max_val)
-    }
+      min_val <- min(all_values, na.rm = TRUE)
+      max_val <- max(all_values, na.rm = TRUE)
 
-    # Round to one decimal place
-    legend_break <- round(legend_break, 1)
+      # Check for infinite values
+      if (is.infinite(min_val) || is.infinite(max_val)) {
+        warning("Infinite values detected. Using default legend breaks.")
+        legend_break <- c(-1, 0, 1)
+      } else if (min_val == max_val) {
+        # All values are the same
+        legend_break <- c(min_val - 0.5, min_val, min_val + 0.5)
+      } else {
+        # Create symmetric breaks around zero for divergent color scale
+        if (min_val < 0 && max_val > 0) {
+          abs_max <- max(abs(min_val), abs(max_val))
+          legend_break <- c(-abs_max, 0, abs_max)
+        } else {
+          # If all values are positive or all negative
+          legend_break <- c(min_val, (min_val + max_val)/2, max_val)
+        }
+
+        # Round to one decimal place
+        legend_break <- round(legend_break, 1)
+
+        # Ensure values are distinct after rounding
+        if (length(unique(legend_break)) < 2) {
+          legend_break <- c(min_val - 0.5, min_val, min_val + 0.5)
+        }
+      }
+    }
 
     # Create the color mapping function (shared across all heatmaps)
     col_fun <- circlize::colorRamp2(legend_break, color.heatmap.use[c(1, 50, 100)])
@@ -500,12 +597,12 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
             )
           )
         } else {
-          # All other heatmaps get NO legend by using a space character name and explicitly setting legend to NULL
+          # All other heatmaps get NO legend by using unique space-based names
           hm <- ComplexHeatmap::Heatmap(
             t_diff_matrix,
             col = col_fun,
             na_col = "white",
-            name = " ",  # Single space name (not empty string)
+            name = paste0(rep(" ", i), collapse = ""),  # Unique name with multiple spaces
             show_heatmap_legend = FALSE,  # Explicitly don't show legend
             cluster_rows = cluster_cols,
             cluster_columns = cluster_rows,
@@ -517,8 +614,8 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
             row_names_rot = 0,
             row_names_gp = grid::gpar(fontsize = font.size),
             column_names_gp = grid::gpar(fontsize = font.size),
-            width = grid::unit(height/length(diff_matrices), "cm"),  # Adjust width
-            height = grid::unit(width, "cm"),
+            width = grid::unit(width/length(diff_matrices), "cm"),  # Adjust width - FIXED!
+            height = grid::unit(height, "cm"),  # FIXED!
             column_title = comparison_labels[[i]],  # Use comparison label as title
             column_title_gp = grid::gpar(fontsize = font.size),
             column_names_rot = 90,
@@ -599,12 +696,12 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
             )
           )
         } else {
-          # All other heatmaps get NO legend by using a space character name and explicitly setting legend to NULL
+          # All other heatmaps get NO legend by using unique space-based names
           hm <- ComplexHeatmap::Heatmap(
             diff_matrix,
             col = col_fun,
             na_col = "white",
-            name = " ",  # Single space name (not empty string)
+            name = paste0(rep(" ", i), collapse = ""),  # Unique name with multiple spaces
             show_heatmap_legend = FALSE,  # Explicitly don't show legend
             cluster_rows = cluster_rows,
             cluster_columns = cluster_cols,
@@ -701,9 +798,12 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
       min_val <- min(diff_matrix, na.rm = TRUE)
       max_val <- max(diff_matrix, na.rm = TRUE)
 
-      # Check if all values are the same
-      if (min_val == max_val) {
-        # Force different values for color scale
+      # Check for infinite values (happens when all values are NA)
+      if (is.infinite(min_val) || is.infinite(max_val)) {
+        warning("All values in difference matrix are NA. Using default legend breaks.")
+        legend.break <- c(-1, 0, 1)
+      } else if (min_val == max_val) {
+        # All values are the same
         legend.break <- c(min_val - 0.5, min_val, min_val + 0.5)
       } else {
         # Create symmetric breaks around zero for divergent color scale
@@ -714,14 +814,14 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
           # If all values are positive or all negative
           legend.break <- c(min_val, (min_val + max_val)/2, max_val)
         }
-      }
 
-      # Round to one decimal place
-      legend.break <- round(legend.break, 1)
+        # Round to one decimal place
+        legend.break <- round(legend.break, 1)
 
-      # Ensure values are distinct
-      if (length(unique(legend.break)) < 2) {
-        legend.break <- c(min_val - 1, min_val, min_val + 1)
+        # Ensure values are distinct after rounding
+        if (length(unique(legend.break)) < 2) {
+          legend.break <- c(min_val - 0.5, min_val, min_val + 0.5)
+        }
       }
 
       # Create the color mapping function
@@ -953,7 +1053,7 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
 
     return(result)
   } else {
-    # Return just the heatmap
+    # Return just the heatmap - matches heatDiff pattern for correct RStudio display
     return(final_heatmap)
   }
 }

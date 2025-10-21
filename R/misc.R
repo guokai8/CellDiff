@@ -231,10 +231,10 @@ compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
   # Add labels to timeline plot if requested
   if (label.timeline) {
     # Find top cell types per condition based on score
-    top_labels <- score_df %>%
-      dplyr::group_by(condition) %>%
-      dplyr::top_n(label.top, score) %>%
-      dplyr::ungroup()
+    score_df_sorted <- score_df[order(score_df$condition, -score_df$score), ]
+    top_labels <- do.call(rbind, lapply(split(score_df_sorted, score_df_sorted$condition), function(df) {
+      head(df, label.top)
+    }))
 
     # Add labels to the plot
     p_timeline <- p_timeline +
@@ -295,10 +295,10 @@ compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
     # Add labels to pathway plot if requested
     if (label.pathway) {
       # Find top pathways per condition based on contribution
-      top_pathways <- pathway_df %>%
-        dplyr::group_by(condition) %>%
-        dplyr::top_n(label.top, contribution) %>%
-        dplyr::ungroup()
+      pathway_df_sorted <- pathway_df[order(pathway_df$condition, -pathway_df$contribution), ]
+      top_pathways <- do.call(rbind, lapply(split(pathway_df_sorted, pathway_df_sorted$condition), function(df) {
+        head(df, label.top)
+      }))
 
       # Add labels to the plot
       p_pathway <- p_pathway +
@@ -314,8 +314,8 @@ compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
     }
   }
 
-  # Create heatmap visualization if requested and pheatmap is available
-  if ((show.heatmap || return.data) && requireNamespace("pheatmap", quietly = TRUE)) {
+  # Create heatmap visualization if requested and ComplexHeatmap is available
+  if ((show.heatmap || return.data) && requireNamespace("ComplexHeatmap", quietly = TRUE)) {
     # Create matrix for heatmap
     score_matrix <- matrix(0, nrow = length(common_cell_types), ncol = length(comparison))
     rownames(score_matrix) <- common_cell_types
@@ -325,25 +325,37 @@ compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
       score_matrix[, i] <- all_scores[[i]]
     }
 
-    # Use global colors for the annotation
-    ann_colors <- list(
-      cell_type = celltype_colors[common_cell_types]
+    # Scale by row (z-score)
+    score_matrix_scaled <- t(scale(t(score_matrix)))
+
+    # Create color mapping
+    col_fun <- circlize::colorRamp2(
+      c(min(score_matrix_scaled, na.rm = TRUE), 0, max(score_matrix_scaled, na.rm = TRUE)),
+      c("#2670B8", "white", "#E67E22")
     )
 
     # Create row annotation
-    row_ann <- data.frame(cell_type = common_cell_types)
-    rownames(row_ann) <- common_cell_types
+    row_ann <- ComplexHeatmap::rowAnnotation(
+      cell_type = common_cell_types,
+      col = list(cell_type = celltype_colors[common_cell_types]),
+      show_legend = FALSE
+    )
 
     # Create heatmap
-    p_heatmap <- pheatmap::pheatmap(
-      score_matrix,
-      scale = "row",
-      clustering_method = "ward.D2",
-      main = paste("Heatmap of", measure.type, "signaling across conditions"),
-      annotation_row = row_ann,
-      annotation_colors = ann_colors,
-      fontsize = 10,
-      silent = TRUE
+    p_heatmap <- ComplexHeatmap::Heatmap(
+      score_matrix_scaled,
+      name = "Z-score",
+      col = col_fun,
+      cluster_rows = TRUE,
+      cluster_columns = TRUE,
+      clustering_method_rows = "ward.D2",
+      clustering_method_columns = "ward.D2",
+      show_row_names = TRUE,
+      show_column_names = TRUE,
+      column_title = paste("Heatmap of", measure.type, "signaling across conditions"),
+      left_annotation = row_ann,
+      row_names_gp = grid::gpar(fontsize = 10),
+      column_names_gp = grid::gpar(fontsize = 10)
     )
   }
 
@@ -390,11 +402,22 @@ compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
 #' @param thresh P-value threshold for significant interactions
 #' @param min_overlap Minimum number of conditions a pattern must appear in to be considered common
 #' @param return_networks Whether to return the full network data
+#' @param show.venn Logical, whether to create Venn diagram visualization (default: TRUE)
+#' @param show.upset Logical, whether to create UpSet plot visualization (default: FALSE)
+#' @param show.network Logical, whether to create network visualization (default: FALSE)
+#' @param show.barplot Logical, whether to create barplot of pattern counts (default: FALSE)
+#' @param return.data Logical, whether to return data along with visualizations (default: FALSE)
+#' @param venn.colors Vector of colors for Venn diagram (NULL for default)
+#' @param network.layout Layout algorithm for network plot (default: "fr")
+#' @param top.n Integer, number of top patterns to display in network (default: 20)
 #'
-#' @return List of common and unique signaling patterns
+#' @return List of common and unique signaling patterns, optionally with visualizations
 #' @export
 findCommonUniquePatterns <- function(object.list, comparison = NULL, pathways = NULL,
-                                     thresh = 0.05, min_overlap = 2, return_networks = FALSE) {
+                                     thresh = 0.05, min_overlap = 2, return_networks = FALSE,
+                                     show.venn = TRUE, show.upset = FALSE,
+                                     show.network = FALSE, show.barplot = FALSE, return.data = FALSE,
+                                     venn.colors = NULL, network.layout = "fr", top.n = 20) {
 
   # If comparison is NULL, use all objects
   if (is.null(comparison)) {
@@ -602,19 +625,221 @@ findCommonUniquePatterns <- function(object.list, comparison = NULL, pathways = 
     }
   }
 
-  # Return results
+  # Create visualizations if requested
+  plots <- list()
+
+  # Prepare data for visualizations
+  # Create a list of interaction IDs for each condition
+  interaction_lists <- list()
+  for (i in 1:length(comparison)) {
+    interaction_lists[[condition_names[comparison[i]]]] <- names(all_lr_pairs[[i]])
+  }
+
+  # 1. Venn Diagram using VennDetail
+  if (show.venn && requireNamespace("VennDetail", quietly = TRUE)) {
+    # VennDetail can handle up to 7 sets
+    if (length(interaction_lists) <= 7) {
+      venn_obj <- VennDetail::venndetail(interaction_lists)
+
+      # Create Venn diagram plot
+      plots$venn <- VennDetail::vennDiagram(venn_obj)
+
+      # Create upset plot using VennDetail if requested
+      if (show.upset) {
+        plots$upset <- VennDetail::upsetPlot(venn_obj)
+      }
+
+      # Store VennDetail object for further analysis
+      plots$venn_object <- venn_obj
+    } else {
+      warning("VennDetail supports up to 7 conditions. Venn diagram will not be created.")
+    }
+  }
+
+  # 2. Barplot of pattern counts
+  if (show.barplot) {
+    # Count patterns per condition
+    pattern_counts <- data.frame(
+      condition = character(),
+      pattern_type = character(),
+      count = integer(),
+      stringsAsFactors = FALSE
+    )
+
+    for (i in 1:length(comparison)) {
+      cond_name <- condition_names[comparison[i]]
+      total_patterns <- length(all_lr_pairs[[i]])
+
+      # Count unique patterns (only in this condition)
+      unique_count <- sum(unique_patterns$condition == cond_name)
+
+      # Count common patterns (in this condition)
+      common_count <- sum(grepl(cond_name, common_patterns$conditions))
+
+      pattern_counts <- rbind(
+        pattern_counts,
+        data.frame(
+          condition = cond_name,
+          pattern_type = "Total",
+          count = total_patterns,
+          stringsAsFactors = FALSE
+        ),
+        data.frame(
+          condition = cond_name,
+          pattern_type = "Unique",
+          count = unique_count,
+          stringsAsFactors = FALSE
+        ),
+        data.frame(
+          condition = cond_name,
+          pattern_type = "Common",
+          count = common_count,
+          stringsAsFactors = FALSE
+        )
+      )
+    }
+
+    # Create barplot
+    plots$barplot <- ggplot2::ggplot(pattern_counts, ggplot2::aes(x = condition, y = count, fill = pattern_type)) +
+      ggplot2::geom_bar(stat = "identity", position = "dodge") +
+      ggplot2::scale_fill_manual(values = c("Total" = "#2670B8", "Unique" = "#E67E22", "Common" = "#16A16E")) +
+      ggplot2::theme_bw() +
+      ggplot2::labs(
+        title = "Signaling Pattern Counts Across Conditions",
+        x = "Condition",
+        y = "Number of Patterns",
+        fill = "Pattern Type"
+      ) +
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+        legend.position = "right"
+      )
+  }
+
+  # 3. Network visualization
+  if (show.network && requireNamespace("igraph", quietly = TRUE)) {
+    # Create a network where:
+    # - Nodes are cell types
+    # - Edges are interactions
+    # - Edge color indicates in which conditions the interaction appears
+
+    # Get top patterns by frequency
+    all_interaction_ids <- names(sort(interaction_counts, decreasing = TRUE))
+    if (length(all_interaction_ids) > top.n) {
+      all_interaction_ids <- all_interaction_ids[1:top.n]
+    }
+
+    # Create edge list
+    edge_list <- data.frame(
+      from = character(),
+      to = character(),
+      pathway = character(),
+      lr_pair = character(),
+      conditions = character(),
+      weight = numeric(),
+      stringsAsFactors = FALSE
+    )
+
+    for (id in all_interaction_ids) {
+      # Find which conditions have this pattern
+      conditions_with_pattern <- c()
+      weights <- c()
+
+      for (i in 1:length(comparison)) {
+        if (id %in% names(all_lr_pairs[[i]])) {
+          conditions_with_pattern <- c(conditions_with_pattern, condition_names[comparison[i]])
+          weights <- c(weights, all_lr_pairs[[i]][[id]]$weight)
+        }
+      }
+
+      # Get pattern details
+      for (i in 1:length(comparison)) {
+        if (id %in% names(all_lr_pairs[[i]])) {
+          pattern <- all_lr_pairs[[i]][[id]]
+          edge_list <- rbind(
+            edge_list,
+            data.frame(
+              from = pattern$sender,
+              to = pattern$target,
+              pathway = pattern$pathway,
+              lr_pair = pattern$lr_pair,
+              conditions = paste(conditions_with_pattern, collapse = ","),
+              weight = mean(weights),
+              stringsAsFactors = FALSE
+            )
+          )
+          break
+        }
+      }
+    }
+
+    # Remove duplicates
+    edge_list <- unique(edge_list)
+
+    # Create igraph object
+    g <- igraph::graph_from_data_frame(edge_list, directed = TRUE)
+
+    # Assign colors based on cell types
+    cell_types <- unique(c(edge_list$from, edge_list$to))
+    cell_colors <- assignColors(cell_types)
+
+    # Set vertex attributes
+    igraph::V(g)$color <- cell_colors[igraph::V(g)$name]
+    igraph::V(g)$size <- 8
+
+    # Set edge attributes
+    igraph::E(g)$width <- scales::rescale(igraph::E(g)$weight, to = c(0.5, 3))
+
+    # Create the plot
+    plots$network <- igraph::plot.igraph(
+      g,
+      layout = igraph::layout_with_fr(g),
+      vertex.label = igraph::V(g)$name,
+      vertex.label.cex = 0.7,
+      vertex.label.color = "black",
+      edge.arrow.size = 0.3,
+      edge.curved = 0.2,
+      main = paste("Top", top.n, "Signaling Interactions Network")
+    )
+
+    # Store graph object
+    plots$network_graph <- g
+  }
+
+  # Prepare return list
+  result <- list(
+    common_patterns = common_patterns,
+    unique_patterns = unique_patterns
+  )
+
+  # Add network data if requested
   if (return_networks) {
-    return(list(
-      common_patterns = common_patterns,
-      unique_patterns = unique_patterns,
-      all_interactions = all_lr_pairs
-    ))
-  } else {
+    result$all_interactions <- all_lr_pairs
+  }
+
+  # Add plots if any were created
+  if (length(plots) > 0) {
+    result$plots <- plots
+  }
+
+  # Add raw data if requested
+  if (return.data) {
+    result$data <- list(
+      interaction_lists = interaction_lists,
+      interaction_counts = interaction_counts,
+      condition_names = condition_names[comparison]
+    )
+  }
+
+  # If only data is requested and no plots
+  if (!show.venn && !show.upset && !show.network && !show.barplot && !return.data && !return_networks) {
     return(list(
       common_patterns = common_patterns,
       unique_patterns = unique_patterns
     ))
   }
+
+  return(result)
 }
 
 #' Extract Network From CellChat Object for Multiple Groups Analysis

@@ -216,7 +216,10 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
         stop(paste("Indices in pair", i, "must be in the comparison vector"))
       }
 
-      comparison_pairs[[i]] <- pair
+      # Convert object indices to positions within comparison vector
+      pos1 <- which(comparison == pair[1])
+      pos2 <- which(comparison == pair[2])
+      comparison_pairs[[i]] <- c(pos1, pos2)
     }
   }
 
@@ -712,6 +715,7 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
                                               heatmap_colors = c("deepskyblue", "white", "darkorange"),
                                               border_color = "grey60",
                                               pThresh = 0.05,
+                                              comparison_method = "all_vs_ref",
                                               color.pathway = NULL) {
     # Get all unique pathways across all comparisons
     all_paths <- unique(unlist(all_significant_paths_full))
@@ -731,47 +735,51 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
       if (is.null(all_results[[p]])) next
 
       pair <- comparison_pairs[[p]]
-      # Only include comparisons against the reference
-      if (pair[1] != ref_idx) next
 
-      cond_idx <- pair[2]
-      cond_name <- condition_names[comparison[cond_idx]]
+      # For all_vs_ref: only include comparisons against the reference
+      # For custom_pairs: include all comparison pairs
+      if (comparison_method == "all_vs_ref" && pair[1] != ref_idx) next
+
+      cond_idx1 <- pair[1]
+      cond_idx2 <- pair[2]
+      cond_name1 <- condition_names[comparison[cond_idx1]]
+      cond_name2 <- condition_names[comparison[cond_idx2]]
 
       # For each significant pathway
       for (path in all_paths) {
         # Find the original contribution values from each condition
-        ref_contributions <- all_results[[p]][all_results[[p]]$name == path, ref_name]
-        cond_contributions <- all_results[[p]][all_results[[p]]$name == path, cond_name]
+        cond1_contributions <- all_results[[p]][all_results[[p]]$name == path, cond_name1]
+        cond2_contributions <- all_results[[p]][all_results[[p]]$name == path, cond_name2]
 
-        if (length(ref_contributions) > 0 && length(cond_contributions) > 0) {
+        if (length(cond1_contributions) > 0 && length(cond2_contributions) > 0) {
           # Calculate proportions for stacked bar representation
-          total <- ref_contributions + cond_contributions
-          ref_prop <- ref_contributions / total
-          cond_prop <- cond_contributions / total
+          total <- cond1_contributions + cond2_contributions
+          cond1_prop <- cond1_contributions / total
+          cond2_prop <- cond2_contributions / total
 
           # Get significance
           p_val <- all_results[[p]]$padj[all_results[[p]]$name == path]
 
-          # Add both condition and reference to plot data
+          # Add both conditions to plot data
           plot_data <- rbind(plot_data,
                              data.frame(
                                pathway = path,
-                               condition = ref_name,
-                               group = ref_name,
-                               contribution = ref_contributions,
-                               proportion = ref_prop,
+                               condition = cond_name1,
+                               group = cond_name1,
+                               contribution = cond1_contributions,
+                               proportion = cond1_prop,
                                significant = p_val < pThresh,
-                               comparison = paste(cond_name, "vs", ref_name),
+                               comparison = paste(cond_name2, "vs", cond_name1),
                                stringsAsFactors = FALSE
                              ),
                              data.frame(
                                pathway = path,
-                               condition = cond_name,
-                               group = cond_name,
-                               contribution = cond_contributions,
-                               proportion = cond_prop,
+                               condition = cond_name2,
+                               group = cond_name2,
+                               contribution = cond2_contributions,
+                               proportion = cond2_prop,
                                significant = p_val < pThresh,
-                               comparison = paste(cond_name, "vs", ref_name),
+                               comparison = paste(cond_name2, "vs", cond_name1),
                                stringsAsFactors = FALSE
                              ))
         }
@@ -796,9 +804,19 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     # Set factor levels for proper ordering
     plot_data$pathway <- factor(plot_data$pathway, levels = ordered_paths)
     plot_data$condition <- factor(plot_data$condition)
-    plot_data$group <- factor(plot_data$group, levels = c(ref_name, unique(plot_data$group[plot_data$group != ref_name])))
+
+    # Get all unique groups for proper factor ordering
+    all_groups <- unique(plot_data$group)
+    plot_data$group <- factor(plot_data$group, levels = all_groups)
 
     # Create a faceted barplot showing all comparisons
+    # Determine the title based on comparison method
+    barplot_title <- if (comparison_method == "all_vs_ref") {
+      paste("Pathway Activity: All Conditions vs", ref_name)
+    } else {
+      "Pathway Activity: Custom Comparisons"
+    }
+
     barplot <- ggplot2::ggplot(plot_data,
                                ggplot2::aes(x = pathway, y = proportion, fill = group)) +
       ggplot2::geom_bar(stat = "identity") +
@@ -814,52 +832,81 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
         axis.text.x = ggplot2::element_text(angle = label_angle, hjust = 1)
       ) +
       ggplot2::labs(
-        title = paste("Pathway Activity: All Conditions vs", ref_name),
+        title = barplot_title,
         x = "",
         y = "Relative Contribution"
       )
 
     # Create heatmap
     # Create a heatmap showing pathway changes across conditions
-    # Get unique conditions and pathways
-    all_conditions <- unique(plot_data$condition[plot_data$condition != ref_name])
-
-    # Create heatmap data - difference from reference for each pathway and condition
     heatmap_data <- data.frame()
 
-    for (path in levels(plot_data$pathway)) {
-      for (cond in all_conditions) {
-        # Get reference proportion for this specific comparison
-        comp_name <- paste(cond, "vs", ref_name)
+    if (comparison_method == "all_vs_ref") {
+      # For all_vs_ref: show differences from reference
+      all_conditions <- unique(plot_data$condition[plot_data$condition != ref_name])
 
-        # Check if this comparison exists in the data
-        if (comp_name %in% unique(plot_data$comparison)) {
-          # Get reference proportion
-          ref_props <- plot_data$proportion[plot_data$pathway == path &
-                                              plot_data$group == ref_name &
-                                              plot_data$comparison == comp_name]
+      for (path in levels(plot_data$pathway)) {
+        for (cond in all_conditions) {
+          # Get reference proportion for this specific comparison
+          comp_name <- paste(cond, "vs", ref_name)
 
-          # Get condition proportion
-          cond_props <- plot_data$proportion[plot_data$pathway == path &
-                                               plot_data$group == cond &
-                                               plot_data$comparison == comp_name]
+          # Check if this comparison exists in the data
+          if (comp_name %in% unique(plot_data$comparison)) {
+            # Get reference proportion
+            ref_props <- plot_data$proportion[plot_data$pathway == path &
+                                                plot_data$group == ref_name &
+                                                plot_data$comparison == comp_name]
 
-          # Only proceed if we have both values
-          if (length(ref_props) > 0 && length(cond_props) > 0) {
-            # Calculate difference from reference
-            diff_from_ref <- cond_props - ref_props
+            # Get condition proportion
+            cond_props <- plot_data$proportion[plot_data$pathway == path &
+                                                 plot_data$group == cond &
+                                                 plot_data$comparison == comp_name]
+
+            # Only proceed if we have both values
+            if (length(ref_props) > 0 && length(cond_props) > 0) {
+              # Calculate difference from reference
+              diff_from_ref <- cond_props - ref_props
+
+              # Get significance
+              is_sig <- plot_data$significant[plot_data$pathway == path &
+                                                plot_data$group == cond &
+                                                plot_data$comparison == comp_name]
+
+              # Add to heatmap data
+              heatmap_data <- rbind(heatmap_data,
+                                    data.frame(
+                                      pathway = path,
+                                      condition = cond,
+                                      difference = diff_from_ref,
+                                      significant = is_sig,
+                                      stringsAsFactors = FALSE
+                                    ))
+            }
+          }
+        }
+      }
+    } else {
+      # For custom_pairs: show differences for each comparison
+      all_comparisons <- unique(plot_data$comparison)
+
+      for (path in levels(plot_data$pathway)) {
+        for (comp in all_comparisons) {
+          # Get the two conditions for this comparison
+          comp_data <- plot_data[plot_data$comparison == comp & plot_data$pathway == path, ]
+
+          if (nrow(comp_data) == 2) {
+            # Calculate difference (second condition - first condition)
+            diff_value <- comp_data$proportion[2] - comp_data$proportion[1]
 
             # Get significance
-            is_sig <- plot_data$significant[plot_data$pathway == path &
-                                              plot_data$group == cond &
-                                              plot_data$comparison == comp_name]
+            is_sig <- any(comp_data$significant)
 
             # Add to heatmap data
             heatmap_data <- rbind(heatmap_data,
                                   data.frame(
                                     pathway = path,
-                                    condition = cond,
-                                    difference = diff_from_ref,
+                                    condition = comp,
+                                    difference = diff_value,
                                     significant = is_sig,
                                     stringsAsFactors = FALSE
                                   ))
@@ -870,13 +917,19 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
 
     # Only create heatmap if we have data
     if (nrow(heatmap_data) > 0) {
+      heatmap_title <- if (comparison_method == "all_vs_ref") {
+        paste("Pathway Changes Relative to", ref_name)
+      } else {
+        "Pathway Changes: Custom Comparisons"
+      }
+
       heatmap <- ggplot2::ggplot(heatmap_data,
                                  ggplot2::aes(x = condition, y = pathway, fill = difference)) +
         ggplot2::geom_tile(color = border_color) +
         ggplot2::scale_fill_gradient2(
           low = heatmap_colors[1], mid = heatmap_colors[2], high = heatmap_colors[3],
           midpoint = 0,
-          name = "Difference from Reference"
+          name = "Difference"
         ) +
         ggplot2::theme_minimal() +
         ggplot2::theme(
@@ -885,7 +938,7 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
           panel.grid.major = ggplot2::element_blank()
         ) +
         ggplot2::labs(
-          title = paste("Pathway Changes Relative to", ref_name),
+          title = heatmap_title,
           x = "",
           y = ""
         )
@@ -894,19 +947,23 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     }
 
     # Create a slope graph to visualize trends across conditions
-    # Get all significant pathways from any comparison
-    significant_pathways <- unique(plot_data$pathway[plot_data$significant == TRUE])
+    # Note: Slope plot works best for all_vs_ref method
+    # For custom_pairs, we'll create a simpler version
+    slope_plot <- NULL
 
-    # Get data for non-reference conditions for significant pathways
-    slope_data <- plot_data[plot_data$group != ref_name &
-                              plot_data$pathway %in% significant_pathways, ]
+    if (comparison_method == "all_vs_ref") {
+      # Get all significant pathways from any comparison
+      significant_pathways <- unique(plot_data$pathway[plot_data$significant == TRUE])
 
+      # Get data for non-reference conditions for significant pathways
+      slope_data <- plot_data[plot_data$group != ref_name &
+                                plot_data$pathway %in% significant_pathways, ]
 
-    # Add position column for each condition
-    conditions <- unique(slope_data$condition)
-    for (i in 1:length(conditions)) {
-      slope_data$position[slope_data$condition == conditions[i]] <- i
-    }
+      # Add position column for each condition
+      conditions <- unique(slope_data$condition)
+      for (i in 1:length(conditions)) {
+        slope_data$position[slope_data$condition == conditions[i]] <- i
+      }
 
 if (nrow(slope_data) > 0) {
   # Handle pathway colors - create a color palette with enough colors
@@ -982,6 +1039,8 @@ if (nrow(slope_data) > 0) {
 } else {
   slope_plot <- NULL
 }
+    }  # End of if (comparison_method == "all_vs_ref")
+
     # Return all plots
     return(list(
       barplot = barplot,
@@ -1039,9 +1098,9 @@ if (nrow(slope_data) > 0) {
     }
   }
 
-  # Create combined visualization for all vs reference comparisons
+  # Create combined visualization for all vs reference comparisons OR custom_pairs
   combined_comparison_plots <- NULL
-  if (comparison_method == "all_vs_ref") {
+  if (comparison_method %in% c("all_vs_ref", "custom_pairs")) {
     # Only create the combined plots if the specific visualization type is requested
     if (show_comparison_barplot || show_comparison_heatmap || show_comparison_slope ||
         comparison_plot_type %in% c("barplot", "heatmap", "slope")) {
@@ -1057,7 +1116,9 @@ if (nrow(slope_data) > 0) {
         label_angle = label_angle,
         heatmap_colors = heatmap_colors,
         border_color = border_color,
-        pThresh = pThresh
+        pThresh = pThresh,
+        comparison_method = comparison_method,
+        color.pathway = color.pathway
       )
     }
   }
