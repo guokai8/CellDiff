@@ -9,6 +9,7 @@ scatterDiff(
   comparison = c(1, 2),
   pathways = NULL,
   measure.type = "influence",
+  cell.type.strategy = c("shared", "union"),
   arrow.size = 1,
   arrow.alpha = 0.8,
   thresh = 0.05,
@@ -25,6 +26,8 @@ scatterDiff(
 \item{pathways}{Vector of pathway names to include (NULL for all)}
 
 \item{measure.type}{"sender", "receiver", or "influence" (default)}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types: "shared" (default) or "union"}
 
 \item{arrow.size}{Size of trajectory arrows}
 
@@ -44,4 +47,39 @@ A ggplot object
 \description{
 Creates a scatter plot showing how cell types change their signaling roles
 between two conditions, using pathway-level information from the netP slot.
+}
+\examples{
+\dontrun{
+# Load example data
+data(celllist)
+
+# Basic usage with default parameters (influence measure, shared cell types)
+plot <- scatterDiff(celllist, comparison = c(1, 2))
+
+# Use union strategy to include all cell types
+plot <- scatterDiff(celllist, comparison = c(1, 2),
+                    cell.type.strategy = "union")
+
+# Focus on sender role changes
+plot <- scatterDiff(celllist, comparison = c(1, 2),
+                    measure.type = "sender",
+                    cell.type.strategy = "union")
+
+# Analyze specific pathways
+plot <- scatterDiff(celllist, comparison = c(1, 2),
+                    pathways = c("CXCL", "CCL", "VEGF"),
+                    measure.type = "receiver",
+                    cell.type.strategy = "union")
+
+# Customize visualization
+plot <- scatterDiff(celllist, comparison = c(1, 2),
+                    measure.type = "influence",
+                    cell.type.strategy = "union",
+                    arrow.size = 1.5,
+                    arrow.alpha = 0.9,
+                    label.cell = TRUE,
+                    label.size = 4,
+                    title = "Cell Signaling Changes: Normal vs Disease")
+}
+
 }

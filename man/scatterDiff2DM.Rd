@@ -9,6 +9,7 @@ scatterDiff2DM(
   comparison = NULL,
   reference = NULL,
   pathways = NULL,
+  cell.type.strategy = c("shared", "union"),
   thresh = 0.05,
   log.scale = TRUE,
   arrow.size = 1,
@@ -71,6 +72,8 @@ scatterDiff2DM(
 If NULL (default), the first object in comparison will be used as reference.}
 
 \item{pathways}{Vector of pathway names to include (NULL for all)}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types: "shared" (default) or "union"}
 
 \item{thresh}{P-value threshold for significant interactions (default: 0.05)}
 
@@ -184,4 +187,31 @@ A ggplot object or a list with plot and data if return_data=TRUE
 \description{
 Creates a 2D scatter plot showing how cell types change in both sender and receiver
 dimensions across multiple conditions, using pathway-level information from the netP slot.
+}
+\examples{
+\dontrun{
+# Load example data
+data(cellchatlist)
+
+# Basic 2D scatter for multiple conditions
+plot <- scatterDiff2DM(cellchatlist)
+
+# Use union strategy to include all cell types
+plot <- scatterDiff2DM(cellchatlist,
+                       cell.type.strategy = "union")
+
+# Faceted plot with union strategy
+plot <- scatterDiff2DM(cellchatlist,
+                       cell.type.strategy = "union",
+                       plot.type = "facet",
+                       facet.ncol = 2)
+
+# Group-colored with convex hulls
+plot <- scatterDiff2DM(cellchatlist,
+                       cell.type.strategy = "union",
+                       plot.type = "group_colored",
+                       convex.hull = TRUE,
+                       use.group.colors = TRUE)
+}
+
 }

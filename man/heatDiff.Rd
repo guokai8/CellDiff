@@ -9,6 +9,7 @@ heatDiff(
   comparison = c(1, 2),
   measure = c("both", "sender", "receiver"),
   signaling = NULL,
+  cell.type.strategy = c("shared", "union"),
   color.heatmap = "custom",
   color.use = NULL,
   title = NULL,
@@ -48,6 +49,11 @@ heatDiff(
 
 \item{signaling}{Character vector of pathway names to include in the analysis. If NULL (default),
 all pathways present in either condition will be used.}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types across objects.
+Options: "shared" (default, uses only common cell types) or "union" (uses all cell types,
+assigns 0 for missing ones). When objects have different cell types, "shared" excludes
+unique cell types while "union" includes all by treating missing ones as having zero signal.}
 
 \item{color.heatmap}{Either a string specifying a predefined color scheme ("custom", "RdBu", "BuOr")
 or a vector of colors to create a custom gradient. Default is "custom" (deepskyblue-white-darkorange).}
@@ -130,21 +136,45 @@ between two conditions. It calculates normalized signaling strength for each cel
 and pathway, then visualizes the differences between conditions.
 }
 \examples{
-# Basic usage with default parameters
-result <- heatDiff_all(cellchat.list, comparison = c(1, 2), measure = "sender")
+\dontrun{
+# Load example data
+data(celllist)
+
+# Basic usage with default parameters (shared cell types)
+result <- heatDiff(celllist, comparison = c(1, 2), measure = "sender")
+
+# Use union strategy to include all cell types
+result <- heatDiff(celllist, comparison = c(1, 2),
+                   measure = "sender",
+                   cell.type.strategy = "union")
 
 # Advanced usage with customization
-result <- heatDiff_all(cellchat.list, comparison = c(1, 2),
-                      measure = "both",
-                      color.heatmap = c("purple", "white", "green"),
-                      use_log2fc = TRUE,
-                      cluster_rows = TRUE,
-                      cluster_cols = TRUE,
-                      show_values = TRUE,
-                      filter_thresh = 0.1)
+result <- heatDiff(celllist, comparison = c(1, 2),
+                   measure = "both",
+                   cell.type.strategy = "union",
+                   color.heatmap = c("purple", "white", "green"),
+                   use_log2fc = TRUE,
+                   cluster_rows = TRUE,
+                   cluster_cols = TRUE,
+                   show_values = TRUE,
+                   filter_thresh = 0.1)
 
-# Just get the heatmap for plotting
-heatmap <- heatDiff_all(cellchat.list, comparison = c(1, 2),
-                       measure = "receiver", return_data = FALSE)
+# Compare specific pathways with union strategy
+result <- heatDiff(celllist, comparison = c(1, 2),
+                   measure = "receiver",
+                   signaling = c("CXCL", "CCL", "VEGF"),
+                   cell.type.strategy = "union",
+                   return_data = FALSE)
+
+# Check alignment before analysis
+alignment <- alignCellTypes(celllist, indices = c(1, 2), strategy = "union")
+print(alignment$cell_types)
+print(alignment$missing_by_object)
+
+# Then create heatmap with union strategy
+heatmap <- heatDiff(celllist, comparison = c(1, 2),
+                    measure = "both",
+                    cell.type.strategy = "union")
+}
 
 }

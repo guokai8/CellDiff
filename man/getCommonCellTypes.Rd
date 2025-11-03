@@ -23,3 +23,16 @@ This function extracts the cell types that are common across multiple CellChat o
 
 This function extracts the cell types that are common across multiple CellChat objects.
 }
+\examples{
+\dontrun{
+# Load example data
+data(cellchatlist)
+
+# Get common cell types across all objects
+common_cells <- getCommonCellTypes(cellchatlist)
+
+# Get common cell types for specific conditions
+common_cells <- getCommonCellTypes(cellchatlist, indices = c(1, 2))
+}
+
+}

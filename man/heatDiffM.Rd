@@ -10,6 +10,7 @@ heatDiffM(
   reference = NULL,
   measure = c("both", "sender", "receiver"),
   signaling = NULL,
+  cell.type.strategy = c("shared", "union"),
   color.heatmap = "custom",
   color.use = NULL,
   title = NULL,
@@ -61,6 +62,10 @@ If NULL (default), the first object in comparison will be used as reference.}
 
 \item{signaling}{Character vector of pathway names to include in the analysis. If NULL (default),
 all pathways present in any condition will be used.}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types across objects.
+Options: "shared" (default, uses only common cell types) or "union" (uses all cell types,
+assigns 0 for missing ones).}
 
 \item{color.heatmap}{Either a string specifying a predefined color scheme ("custom", "RdBu", "BuOr")
 or a vector of colors to create a custom gradient. Default is "custom" (blue-white-red).}
@@ -158,23 +163,47 @@ across multiple conditions. It calculates normalized signaling strength for each
 and pathway, then visualizes the differences between conditions.
 }
 \examples{
-# Basic usage with default parameters
-heatDiffM(cellchat.list, measure = "sender")
+\dontrun{
+# Load example data
+data(cellchatlist)
 
-# Advanced usage with customization
-heatDiffM(cellchat.list,
-         measure = "both",
-         reference = "Normal",
-         color.heatmap = c("purple", "white", "green"),
-         use_log2fc = TRUE,
-         cluster_rows = TRUE,
-         cluster_cols = TRUE,
-         show_values = TRUE,
-         filter_thresh = 0.1)
+# Basic usage with default parameters (shared cell types)
+result <- heatDiffM(cellchatlist, measure = "sender")
 
-# Big side-by-side heatmap
-heatDiffM(cellchat.list,
-         measure = "sender",
-         big_heatmap = TRUE)
+# Use union strategy to include all cell types across conditions
+result <- heatDiffM(cellchatlist,
+                    measure = "sender",
+                    cell.type.strategy = "union")
+
+# Compare specific conditions with custom reference
+result <- heatDiffM(cellchatlist,
+                    comparison = c(1, 2, 3),
+                    reference = 1,
+                    measure = "both",
+                    cell.type.strategy = "union")
+
+# All pairwise comparisons with union strategy
+result <- heatDiffM(cellchatlist,
+                    measure = "receiver",
+                    cell.type.strategy = "union",
+                    comparison_method = "all_vs_all")
+
+# Advanced customization
+result <- heatDiffM(cellchatlist,
+                    measure = "both",
+                    cell.type.strategy = "union",
+                    color.heatmap = c("purple", "white", "green"),
+                    use_log2fc = TRUE,
+                    cluster_rows = TRUE,
+                    cluster_cols = TRUE,
+                    show_values = TRUE,
+                    filter_thresh = 0.1)
+
+# Big side-by-side heatmap with union strategy
+result <- heatDiffM(cellchatlist,
+                    measure = "sender",
+                    cell.type.strategy = "union",
+                    big_heatmap = TRUE)
+}
 
 }

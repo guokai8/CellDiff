@@ -8,6 +8,7 @@ scatterDiff2D(
   object.list,
   comparison = c(1, 2),
   pathways = NULL,
+  cell.type.strategy = c("union", "shared"),
   thresh = 0.05,
   log.scale = TRUE,
   arrow.size = 1,
@@ -49,6 +50,8 @@ scatterDiff2D(
 \item{comparison}{Vector of indices to compare (length 2)}
 
 \item{pathways}{Vector of pathway names to include (NULL for all)}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types: "shared" (uses intersection) or "union" (default, uses all cell types)}
 
 \item{thresh}{P-value threshold for significant interactions (default: 0.05)}
 
@@ -122,4 +125,32 @@ A ggplot object or a list of data frames if return.data is TRUE
 \description{
 Creates a 2D scatter plot showing how cell types change in both sender and receiver
 dimensions between two conditions, using pathway-level information from the netP slot.
+}
+\examples{
+\dontrun{
+# Load example data
+data(celllist)
+
+# Basic 2D scatter plot (union strategy by default for this function)
+plot <- scatterDiff2D(celllist, comparison = c(1, 2))
+
+# Use shared strategy instead
+plot <- scatterDiff2D(celllist, comparison = c(1, 2),
+                      cell.type.strategy = "shared")
+
+# Customize visualization
+plot <- scatterDiff2D(celllist, comparison = c(1, 2),
+                      cell.type.strategy = "union",
+                      log.scale = TRUE,
+                      label.cell = TRUE,
+                      add.quadrants = TRUE,
+                      arrow.size = 1.2,
+                      title = "Sender-Receiver Role Changes")
+
+# Analyze specific pathways
+plot <- scatterDiff2D(celllist, comparison = c(1, 2),
+                      pathways = c("CXCL", "CCL"),
+                      cell.type.strategy = "union")
+}
+
 }

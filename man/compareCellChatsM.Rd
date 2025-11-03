@@ -10,6 +10,7 @@ compareCellChatsM(
   reference = NULL,
   pathways = NULL,
   measure.type = c("sender", "receiver", "both", "influence"),
+  cell.type.strategy = c("shared", "union"),
   thresh = 0.05,
   norm.method = c("none", "z-score", "minmax", "relative"),
   show.pathway = FALSE,
@@ -31,6 +32,8 @@ compareCellChatsM(
 \item{pathways}{Vector of pathway names to include (NULL for all)}
 
 \item{measure.type}{Character, type of measure to calculate: "sender", "receiver", "both", or "influence"}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types: "shared" (default) or "union"}
 
 \item{thresh}{P-value threshold for significant interactions}
 
@@ -57,4 +60,38 @@ By default, returns the timeline plot. If show.pathway or show.heatmap are TRUE,
 \description{
 This function compares multiple CellChat objects to identify global changes in
 communication patterns across conditions.
+}
+\examples{
+\dontrun{
+# Load example data
+data(cellchatlist)
+
+# Basic global comparison (shared cell types)
+result <- compareCellChatsM(cellchatlist)
+
+# Use union strategy to include all cell types
+result <- compareCellChatsM(cellchatlist,
+                            cell.type.strategy = "union")
+
+# Compare specific measure with union strategy
+result <- compareCellChatsM(cellchatlist,
+                            measure.type = "sender",
+                            cell.type.strategy = "union",
+                            show.pathway = TRUE)
+
+# Full comparison with all visualizations
+result <- compareCellChatsM(cellchatlist,
+                            measure.type = "influence",
+                            cell.type.strategy = "union",
+                            show.pathway = TRUE,
+                            show.heatmap = TRUE,
+                            return.data = TRUE)
+
+# With z-score normalization
+result <- compareCellChatsM(cellchatlist,
+                            cell.type.strategy = "union",
+                            norm.method = "z-score",
+                            label.timeline = TRUE)
+}
+
 }

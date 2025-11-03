@@ -10,6 +10,7 @@ scatterDiffM(
   reference = NULL,
   pathways = NULL,
   measure.type = "influence",
+  cell.type.strategy = c("shared", "union"),
   arrow.size = 1,
   arrow.alpha = 0.8,
   thresh = 0.05,
@@ -53,6 +54,8 @@ If NULL (default), the first object in comparison will be used as reference.}
 \item{pathways}{Vector of pathway names to include (NULL for all)}
 
 \item{measure.type}{"sender", "receiver", or "influence" (default)}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types: "shared" (default) or "union"}
 
 \item{arrow.size}{Size of trajectory arrows}
 
@@ -123,4 +126,38 @@ A ggplot object or a list with plot and data
 \description{
 Creates a scatter plot showing how cell types change their signaling roles
 across multiple conditions, using pathway-level information from the netP slot.
+}
+\examples{
+\dontrun{
+# Load example data
+data(cellchatlist)
+
+# Basic multi-condition scatter plot (shared cell types)
+plot <- scatterDiffM(cellchatlist)
+
+# Use union strategy to include all cell types
+plot <- scatterDiffM(cellchatlist,
+                     cell.type.strategy = "union")
+
+# Compare specific conditions with custom reference
+plot <- scatterDiffM(cellchatlist,
+                     comparison = c(1, 2, 3),
+                     reference = 1,
+                     measure.type = "sender",
+                     cell.type.strategy = "union")
+
+# Faceted plot with union strategy
+plot <- scatterDiffM(cellchatlist,
+                     measure.type = "influence",
+                     cell.type.strategy = "union",
+                     plot.type = "facet",
+                     facet.ncol = 2)
+
+# Group-colored plot with convex hulls
+plot <- scatterDiffM(cellchatlist,
+                     cell.type.strategy = "union",
+                     plot.type = "group_colored",
+                     convex_hull = TRUE)
+}
+
 }
