@@ -8,6 +8,7 @@
 #' @param comparison Vector of indices to compare (length 2)
 #' @param pathways Vector of pathway names to include (NULL for all)
 #' @param measure.type "sender", "receiver", or "influence" (default)
+#' @param cell.type.strategy Character, strategy for aligning cell types: "shared" (default) or "union"
 #' @param arrow.size Size of trajectory arrows
 #' @param arrow.alpha Transparency of trajectory arrows
 #' @param thresh P-value threshold for significant interactions (default: 0.05)
@@ -15,9 +16,45 @@
 #' @param label.cell Whether to label cell types
 #' @param label.size Size of cell type labels (default: 3)
 #' @return A ggplot object
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(celllist)
+#'
+#' # Basic usage with default parameters (influence measure, shared cell types)
+#' plot <- scatterDiff(celllist, comparison = c(1, 2))
+#'
+#' # Use union strategy to include all cell types
+#' plot <- scatterDiff(celllist, comparison = c(1, 2),
+#'                     cell.type.strategy = "union")
+#'
+#' # Focus on sender role changes
+#' plot <- scatterDiff(celllist, comparison = c(1, 2),
+#'                     measure.type = "sender",
+#'                     cell.type.strategy = "union")
+#'
+#' # Analyze specific pathways
+#' plot <- scatterDiff(celllist, comparison = c(1, 2),
+#'                     pathways = c("CXCL", "CCL", "VEGF"),
+#'                     measure.type = "receiver",
+#'                     cell.type.strategy = "union")
+#'
+#' # Customize visualization
+#' plot <- scatterDiff(celllist, comparison = c(1, 2),
+#'                     measure.type = "influence",
+#'                     cell.type.strategy = "union",
+#'                     arrow.size = 1.5,
+#'                     arrow.alpha = 0.9,
+#'                     label.cell = TRUE,
+#'                     label.size = 4,
+#'                     title = "Cell Signaling Changes: Normal vs Disease")
+#' }
+#'
 #' @export
 scatterDiff <- function(object.list, comparison = c(1, 2),
                         pathways = NULL, measure.type = "influence",
+                        cell.type.strategy = c("shared", "union"),
                          arrow.size = 1, arrow.alpha = 0.8,
                         thresh = 0.05,
                         title = "Changes in Signaling Roles",
@@ -25,18 +62,20 @@ scatterDiff <- function(object.list, comparison = c(1, 2),
 
   # Global colors for cell types
 
+  # Validate inputs
+  cell.type.strategy <- match.arg(cell.type.strategy)
+
   if (length(comparison) != 2) {
     stop("Please provide exactly 2 indices for comparison")
   }
 
-  # Extract cell types
+  # Align cell types using the specified strategy
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  cell.types <- alignment$cell_types
+
+  # Get cell types available in each object
   cell.types1 <- rownames(object.list[[comparison[1]]]@netP$prob)
   cell.types2 <- rownames(object.list[[comparison[2]]]@netP$prob)
-  cell.types <- intersect(cell.types1, cell.types2)
-
-  if (length(cell.types) == 0) {
-    stop("No common cell types found between the two objects")
-  }
   # Get pathways if not specified
   pathways1 <- dimnames(object.list[[comparison[1]]]@netP$prob)[[3]]
   pathways2 <- dimnames(object.list[[comparison[2]]]@netP$prob)[[3]]
@@ -51,14 +90,20 @@ scatterDiff <- function(object.list, comparison = c(1, 2),
     stop("No common pathways found between the two objects")
   }
 
-  # Get signaling scores for both conditions
-  scores1 <- calculateSignaling(object.list[[comparison[1]]], cell.types1, pathways1, measure.type)
-  scores2 <- calculateSignaling(object.list[[comparison[2]]], cell.types2, pathways2, measure.type)
+  # Get signaling scores for both conditions (use aligned cell types)
+  scores1 <- calculateSignaling(object.list[[comparison[1]]], cell.types, pathways1, measure.type)
+  scores2 <- calculateSignaling(object.list[[comparison[2]]], cell.types, pathways2, measure.type)
 
   # Get counts for both conditions and average them
   counts1 <- getInteractionCounts(object.list[[comparison[1]]], signaling = pathways1, slot.name = "net", thresh = thresh)
   counts2 <- getInteractionCounts(object.list[[comparison[2]]], signaling =  pathways2, slot.name = "net", thresh = thresh)
-  counts <- abs(counts2 - counts1)
+
+  # Align counts to cell.types (some may be missing in union strategy)
+  counts1_aligned <- counts1[cell.types]
+  counts2_aligned <- counts2[cell.types]
+  counts1_aligned[is.na(counts1_aligned)] <- 0
+  counts2_aligned[is.na(counts2_aligned)] <- 0
+  counts <- abs(counts2_aligned - counts1_aligned)
 
   # Scale counts for dot size (add small value to ensure all dots are visible)
   #scaled_counts <- sqrt(counts) + 1

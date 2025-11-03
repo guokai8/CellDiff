@@ -10,6 +10,10 @@
 #'   "receiver" (incoming signaling), or "both" (overall signaling).
 #' @param signaling Character vector of pathway names to include in the analysis. If NULL (default),
 #'   all pathways present in either condition will be used.
+#' @param cell.type.strategy Character, strategy for aligning cell types across objects.
+#'   Options: "shared" (default, uses only common cell types) or "union" (uses all cell types,
+#'   assigns 0 for missing ones). When objects have different cell types, "shared" excludes
+#'   unique cell types while "union" includes all by treating missing ones as having zero signal.
 #' @param color.heatmap Either a string specifying a predefined color scheme ("custom", "RdBu", "BuOr")
 #'   or a vector of colors to create a custom gradient. Default is "custom" (deepskyblue-white-darkorange).
 #' @param color.use Vector of colors for cell type annotations. If NULL, colors will be generated automatically.
@@ -59,22 +63,46 @@
 #'   If return_data=FALSE, returns only the ComplexHeatmap object.
 #'
 #' @examples
-#' # Basic usage with default parameters
-#' result <- heatDiff_all(cellchat.list, comparison = c(1, 2), measure = "sender")
+#' \dontrun{
+#' # Load example data
+#' data(celllist)
+#'
+#' # Basic usage with default parameters (shared cell types)
+#' result <- heatDiff(celllist, comparison = c(1, 2), measure = "sender")
+#'
+#' # Use union strategy to include all cell types
+#' result <- heatDiff(celllist, comparison = c(1, 2),
+#'                    measure = "sender",
+#'                    cell.type.strategy = "union")
 #'
 #' # Advanced usage with customization
-#' result <- heatDiff_all(cellchat.list, comparison = c(1, 2),
-#'                       measure = "both",
-#'                       color.heatmap = c("purple", "white", "green"),
-#'                       use_log2fc = TRUE,
-#'                       cluster_rows = TRUE,
-#'                       cluster_cols = TRUE,
-#'                       show_values = TRUE,
-#'                       filter_thresh = 0.1)
+#' result <- heatDiff(celllist, comparison = c(1, 2),
+#'                    measure = "both",
+#'                    cell.type.strategy = "union",
+#'                    color.heatmap = c("purple", "white", "green"),
+#'                    use_log2fc = TRUE,
+#'                    cluster_rows = TRUE,
+#'                    cluster_cols = TRUE,
+#'                    show_values = TRUE,
+#'                    filter_thresh = 0.1)
 #'
-#' # Just get the heatmap for plotting
-#' heatmap <- heatDiff_all(cellchat.list, comparison = c(1, 2),
-#'                        measure = "receiver", return_data = FALSE)
+#' # Compare specific pathways with union strategy
+#' result <- heatDiff(celllist, comparison = c(1, 2),
+#'                    measure = "receiver",
+#'                    signaling = c("CXCL", "CCL", "VEGF"),
+#'                    cell.type.strategy = "union",
+#'                    return_data = FALSE)
+#'
+#' # Check alignment before analysis
+#' alignment <- alignCellTypes(celllist, indices = c(1, 2), strategy = "union")
+#' print(alignment$cell_types)
+#' print(alignment$missing_by_object)
+#'
+#' # Then create heatmap with union strategy
+#' heatmap <- heatDiff(celllist, comparison = c(1, 2),
+#'                     measure = "both",
+#'                     cell.type.strategy = "union")
+#' }
 #'
 #' @importFrom ComplexHeatmap Heatmap HeatmapAnnotation rowAnnotation anno_barplot
 #' @importFrom circlize colorRamp2
@@ -85,6 +113,7 @@
 #' @export
 heatDiff <- function(object.list, comparison = c(1, 2),
                          measure = c("both", "sender", "receiver"), signaling = NULL,
+                         cell.type.strategy = c("shared", "union"),
                          color.heatmap = "custom", color.use = NULL,
                          title = NULL, width = 10, height = 8,
                          font.size = 8, font.size.title = 10,
@@ -102,6 +131,7 @@ heatDiff <- function(object.list, comparison = c(1, 2),
 
   # Validate inputs
   measure <- match.arg(measure)
+  cell.type.strategy <- match.arg(cell.type.strategy)
   if (length(comparison) != 2) {
     stop("Please provide exactly 2 indices for comparison")
   }
@@ -117,15 +147,9 @@ heatDiff <- function(object.list, comparison = c(1, 2),
     stop("object.list must be a list containing at least as many elements as the maximum index in comparison")
   }
 
-  # Extract cell types (use only cell types present in both conditions)
-  cell.types <- intersect(
-    rownames(object.list[[comparison[1]]]@net$weight),
-    rownames(object.list[[comparison[2]]]@net$weight)
-  )
-
-  if (length(cell.types) == 0) {
-    stop("No shared cell types found between conditions")
-  }
+  # Align cell types using the specified strategy
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  cell.types <- alignment$cell_types
 
   # Extract ALL pathways from BOTH conditions if not provided
   if (is.null(signaling)) {
@@ -304,9 +328,17 @@ heatDiff <- function(object.list, comparison = c(1, 2),
     show_annotation_name = FALSE
   )
 
+  # Generate colors for pathway bars (columns)
+  n_pathways <- ncol(diff_matrix)
+  pathway_colors <- if (n_pathways <= length(global_colors)) {
+    global_colors[1:n_pathways]
+  } else {
+    rep(global_colors, length.out = n_pathways)
+  }
+
   col_anno <- ComplexHeatmap::HeatmapAnnotation(
     Strength = ComplexHeatmap::anno_barplot(colSums(abs(diff_matrix)), border = FALSE,
-                                            gp = grid::gpar(fill = color.use[1:length(colSums(abs(diff_matrix)))])),
+                                            gp = grid::gpar(fill = pathway_colors)),
     show_annotation_name = FALSE
   )
 
@@ -348,15 +380,25 @@ heatDiff <- function(object.list, comparison = c(1, 2),
     # For transposed version, we need to create new annotations specifically for the transposed matrix
     t_diff_matrix <- t(diff_matrix)
 
+    # Generate colors for pathway bars (now rows in transposed version)
+    n_t_pathways <- nrow(t_diff_matrix)
+    t_pathway_colors <- if (n_t_pathways <= length(global_colors)) {
+      global_colors[1:n_t_pathways]
+    } else {
+      rep(global_colors, length.out = n_t_pathways)
+    }
+
     # Create appropriate annotations for the transposed matrix
     t_row_anno <- ComplexHeatmap::rowAnnotation(
-      Strength = ComplexHeatmap::anno_barplot(rowSums(abs(t_diff_matrix)), border = FALSE),
+      Strength = ComplexHeatmap::anno_barplot(rowSums(abs(t_diff_matrix)), border = FALSE,
+                                              gp = grid::gpar(fill = t_pathway_colors)),
       show_annotation_name = FALSE
     )
 
+    # For columns (cell types), use the cell type colors
     t_col_anno <- ComplexHeatmap::HeatmapAnnotation(
       Strength = ComplexHeatmap::anno_barplot(colSums(abs(t_diff_matrix)), border = FALSE,
-                                              gp = grid::gpar(fill = color.use[1:length(colSums(abs(t_diff_matrix)))])),
+                                              gp = grid::gpar(fill = color.use)),
       show_annotation_name = FALSE
     )
 

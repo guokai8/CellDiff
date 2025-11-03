@@ -8,6 +8,7 @@
 #' @param reference Integer or character, index or name of the reference object
 #' @param pathways Vector of pathway names to include (NULL for all)
 #' @param measure.type Character, type of measure to calculate: "sender", "receiver", "both", or "influence"
+#' @param cell.type.strategy Character, strategy for aligning cell types: "shared" (default) or "union"
 #' @param thresh P-value threshold for significant interactions
 #' @param norm.method Method for normalizing values: "none", "z-score", "minmax", or "relative"
 #' @param show.pathway Logical, whether to return pathway contribution plot (default: FALSE)
@@ -20,9 +21,44 @@
 #'
 #' @return By default, returns the timeline plot. If show.pathway or show.heatmap are TRUE,
 #'   returns a list of plots. If return.data is TRUE, also includes data in the returned list.
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(cellchatlist)
+#'
+#' # Basic global comparison (shared cell types)
+#' result <- compareCellChatsM(cellchatlist)
+#'
+#' # Use union strategy to include all cell types
+#' result <- compareCellChatsM(cellchatlist,
+#'                             cell.type.strategy = "union")
+#'
+#' # Compare specific measure with union strategy
+#' result <- compareCellChatsM(cellchatlist,
+#'                             measure.type = "sender",
+#'                             cell.type.strategy = "union",
+#'                             show.pathway = TRUE)
+#'
+#' # Full comparison with all visualizations
+#' result <- compareCellChatsM(cellchatlist,
+#'                             measure.type = "influence",
+#'                             cell.type.strategy = "union",
+#'                             show.pathway = TRUE,
+#'                             show.heatmap = TRUE,
+#'                             return.data = TRUE)
+#'
+#' # With z-score normalization
+#' result <- compareCellChatsM(cellchatlist,
+#'                             cell.type.strategy = "union",
+#'                             norm.method = "z-score",
+#'                             label.timeline = TRUE)
+#' }
+#'
 #' @export
 compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
                               pathways = NULL, measure.type = c("sender", "receiver", "both", "influence"),
+                              cell.type.strategy = c("shared", "union"),
                               thresh = 0.05, norm.method = c("none", "z-score", "minmax", "relative"),
                               show.pathway = FALSE, show.heatmap = FALSE, return.data = FALSE,
                               label.timeline = FALSE, label.pathway = FALSE, label.top = 5,
@@ -31,6 +67,7 @@ compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
   # Match arguments
   measure.type <- match.arg(measure.type)
   norm.method <- match.arg(norm.method)
+  cell.type.strategy <- match.arg(cell.type.strategy)
 
   # If comparison is NULL, use all objects
   if (is.null(comparison)) {
@@ -69,21 +106,9 @@ compareCellChatsM <- function(object.list, comparison = NULL, reference = NULL,
     names(object.list) <- condition_names
   }
 
-  # Extract all cell types
-  all_cell_types <- unique(unlist(lapply(
-    object.list[comparison],
-    function(obj) rownames(obj@net$weight)
-  )))
-
-  # Find common cell types
-  common_cell_types <- Reduce(
-    intersect,
-    lapply(object.list[comparison], function(obj) rownames(obj@net$weight))
-  )
-
-  if (length(common_cell_types) == 0) {
-    stop("No common cell types found across all conditions")
-  }
+  # Align cell types using the specified strategy
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  common_cell_types <- alignment$cell_types
 
   # Find all pathways
   if (is.null(pathways)) {

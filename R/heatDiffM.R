@@ -13,6 +13,9 @@
 #'   "receiver" (incoming signaling), or "both" (overall signaling).
 #' @param signaling Character vector of pathway names to include in the analysis. If NULL (default),
 #'   all pathways present in any condition will be used.
+#' @param cell.type.strategy Character, strategy for aligning cell types across objects.
+#'   Options: "shared" (default, uses only common cell types) or "union" (uses all cell types,
+#'   assigns 0 for missing ones).
 #' @param color.heatmap Either a string specifying a predefined color scheme ("custom", "RdBu", "BuOr")
 #'   or a vector of colors to create a custom gradient. Default is "custom" (blue-white-red).
 #' @param color.use Vector of colors for cell type annotations. If NULL, colors will be generated automatically.
@@ -69,24 +72,48 @@
 #'   If return_data=FALSE, returns only the ComplexHeatmap object.
 #'
 #' @examples
-#' # Basic usage with default parameters
-#' heatDiffM(cellchat.list, measure = "sender")
+#' \dontrun{
+#' # Load example data
+#' data(cellchatlist)
 #'
-#' # Advanced usage with customization
-#' heatDiffM(cellchat.list,
-#'          measure = "both",
-#'          reference = "Normal",
-#'          color.heatmap = c("purple", "white", "green"),
-#'          use_log2fc = TRUE,
-#'          cluster_rows = TRUE,
-#'          cluster_cols = TRUE,
-#'          show_values = TRUE,
-#'          filter_thresh = 0.1)
+#' # Basic usage with default parameters (shared cell types)
+#' result <- heatDiffM(cellchatlist, measure = "sender")
 #'
-#' # Big side-by-side heatmap
-#' heatDiffM(cellchat.list,
-#'          measure = "sender",
-#'          big_heatmap = TRUE)
+#' # Use union strategy to include all cell types across conditions
+#' result <- heatDiffM(cellchatlist,
+#'                     measure = "sender",
+#'                     cell.type.strategy = "union")
+#'
+#' # Compare specific conditions with custom reference
+#' result <- heatDiffM(cellchatlist,
+#'                     comparison = c(1, 2, 3),
+#'                     reference = 1,
+#'                     measure = "both",
+#'                     cell.type.strategy = "union")
+#'
+#' # All pairwise comparisons with union strategy
+#' result <- heatDiffM(cellchatlist,
+#'                     measure = "receiver",
+#'                     cell.type.strategy = "union",
+#'                     comparison_method = "all_vs_all")
+#'
+#' # Advanced customization
+#' result <- heatDiffM(cellchatlist,
+#'                     measure = "both",
+#'                     cell.type.strategy = "union",
+#'                     color.heatmap = c("purple", "white", "green"),
+#'                     use_log2fc = TRUE,
+#'                     cluster_rows = TRUE,
+#'                     cluster_cols = TRUE,
+#'                     show_values = TRUE,
+#'                     filter_thresh = 0.1)
+#'
+#' # Big side-by-side heatmap with union strategy
+#' result <- heatDiffM(cellchatlist,
+#'                     measure = "sender",
+#'                     cell.type.strategy = "union",
+#'                     big_heatmap = TRUE)
+#' }
 #'
 #' @importFrom ComplexHeatmap Heatmap HeatmapAnnotation rowAnnotation anno_barplot
 #' @importFrom circlize colorRamp2
@@ -97,6 +124,7 @@
 #' @export
 heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
                       measure = c("both", "sender", "receiver"), signaling = NULL,
+                      cell.type.strategy = c("shared", "union"),
                       color.heatmap = "custom", color.use = NULL,
                       title = NULL, width = 10, height = 8,
                       font.size = 8, font.size.title = 10,
@@ -122,6 +150,7 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
   measure <- match.arg(measure)
   show_annotation <- match.arg(show_annotation)
   comparison_method <- match.arg(comparison_method)
+  cell.type.strategy <- match.arg(cell.type.strategy)
 
   # If comparison is NULL, use all objects
   if (is.null(comparison)) {
@@ -165,15 +194,9 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
     names(object.list) <- condition_names
   }
 
-  # Extract cell types (use only cell types present in all conditions)
-  cell.types <- Reduce(
-    intersect,
-    lapply(comparison, function(idx) rownames(object.list[[idx]]@net$weight))
-  )
-
-  if (length(cell.types) == 0) {
-    stop("No shared cell types found across all conditions")
-  }
+  # Align cell types using the specified strategy
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  cell.types <- alignment$cell_types
 
   # Extract ALL pathways from ALL conditions if not provided
   if (is.null(signaling)) {
@@ -783,10 +806,23 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
       }
 
       if (show_annotation %in% c("both", "column") && !transpose) {
+        # Generate colors for pathway bars (columns)
+        n_pathways <- ncol(diff_matrix)
+        if (exists("global_colors")) {
+          pathway_colors <- if (n_pathways <= length(global_colors)) {
+            global_colors[1:n_pathways]
+          } else {
+            rep(global_colors, length.out = n_pathways)
+          }
+        } else {
+          pathway_colors <- rainbow(n_pathways)
+        }
+
         col_anno <- ComplexHeatmap::HeatmapAnnotation(
           Strength = ComplexHeatmap::anno_barplot(
             colSums(abs(diff_matrix)),
-            border = FALSE
+            border = FALSE,
+            gp = grid::gpar(fill = pathway_colors)
           ),
           show_annotation_name = FALSE
         )
@@ -837,10 +873,23 @@ heatDiffM <- function(object.list, comparison = NULL, reference = NULL,
 
         # Create appropriate annotations for the transposed matrix
         if (show_annotation %in% c("both", "row")) {
+          # Generate colors for pathway bars (now rows in transposed version)
+          n_t_pathways <- nrow(t_diff_matrix)
+          if (exists("global_colors")) {
+            t_pathway_colors <- if (n_t_pathways <= length(global_colors)) {
+              global_colors[1:n_t_pathways]
+            } else {
+              rep(global_colors, length.out = n_t_pathways)
+            }
+          } else {
+            t_pathway_colors <- rainbow(n_t_pathways)
+          }
+
           t_row_anno <- ComplexHeatmap::rowAnnotation(
             Strength = ComplexHeatmap::anno_barplot(
               rowSums(abs(t_diff_matrix)),
-              border = FALSE
+              border = FALSE,
+              gp = grid::gpar(fill = t_pathway_colors)
             ),
             show_annotation_name = FALSE
           )

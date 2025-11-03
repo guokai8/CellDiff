@@ -9,6 +9,7 @@
 #' @param reference Integer or character, index or name of the reference object to compare against.
 #'   If NULL (default), the first object in comparison will be used as reference.
 #' @param pathways Vector of pathway names to include (NULL for all)
+#' @param cell.type.strategy Character, strategy for aligning cell types: "shared" (default) or "union"
 #' @param thresh P-value threshold for significant interactions (default: 0.05)
 #' @param log.scale Whether to use log scale for axes (default: TRUE)
 #' @param arrow.size Size of trajectory arrows (default: 1)
@@ -66,6 +67,33 @@
 #' @param return_data Whether to return the data along with the plot
 #'
 #' @return A ggplot object or a list with plot and data if return_data=TRUE
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(cellchatlist)
+#'
+#' # Basic 2D scatter for multiple conditions
+#' plot <- scatterDiff2DM(cellchatlist)
+#'
+#' # Use union strategy to include all cell types
+#' plot <- scatterDiff2DM(cellchatlist,
+#'                        cell.type.strategy = "union")
+#'
+#' # Faceted plot with union strategy
+#' plot <- scatterDiff2DM(cellchatlist,
+#'                        cell.type.strategy = "union",
+#'                        plot.type = "facet",
+#'                        facet.ncol = 2)
+#'
+#' # Group-colored with convex hulls
+#' plot <- scatterDiff2DM(cellchatlist,
+#'                        cell.type.strategy = "union",
+#'                        plot.type = "group_colored",
+#'                        convex.hull = TRUE,
+#'                        use.group.colors = TRUE)
+#' }
+#'
 #' @importFrom ggplot2 ggplot aes geom_point geom_segment theme_bw labs scale_color_manual
 #'   scale_shape_manual scale_alpha_manual scale_size annotate xlim ylim theme element_text
 #'   facet_wrap ggtitle
@@ -74,7 +102,9 @@
 #' @importFrom gridExtra grid.arrange
 #' @export
 scatterDiff2DM <- function(object.list, comparison = NULL, reference = NULL,
-                           pathways = NULL, thresh = 0.05,
+                           pathways = NULL,
+                           cell.type.strategy = c("shared", "union"),
+                           thresh = 0.05,
                            log.scale = TRUE,
                            arrow.size = 1, arrow.alpha = 0.8,
                            arrow.color = NULL, arrow.type = "closed",
@@ -121,6 +151,7 @@ scatterDiff2DM <- function(object.list, comparison = NULL, reference = NULL,
   # Match arguments
   plot.type <- match.arg(plot.type)
   comparison_method <- match.arg(comparison_method)
+  cell.type.strategy <- match.arg(cell.type.strategy)
 
   # For backward compatibility - if plot.type is "group_colored", set use.group.colors to TRUE
   if (plot.type == "group_colored") {
@@ -164,15 +195,9 @@ scatterDiff2DM <- function(object.list, comparison = NULL, reference = NULL,
     names(object.list) <- condition_names
   }
 
-  # Extract cell types
-  cell_types_list <- lapply(object.list[comparison], function(obj) {
-    rownames(obj@netP$prob)
-  })
-  common_cell_types <- Reduce(intersect, cell_types_list)
-
-  if (length(common_cell_types) == 0) {
-    stop("No common cell types found across all conditions")
-  }
+  # Align cell types using the specified strategy
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  common_cell_types <- alignment$cell_types
 
   # Get all pathways if not specified
   if (is.null(pathways)) {

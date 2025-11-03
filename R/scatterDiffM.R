@@ -10,6 +10,7 @@
 #'   If NULL (default), the first object in comparison will be used as reference.
 #' @param pathways Vector of pathway names to include (NULL for all)
 #' @param measure.type "sender", "receiver", or "influence" (default)
+#' @param cell.type.strategy Character, strategy for aligning cell types: "shared" (default) or "union"
 #' @param arrow.size Size of trajectory arrows
 #' @param arrow.alpha Transparency of trajectory arrows
 #' @param thresh P-value threshold for significant interactions (default: 0.05)
@@ -45,6 +46,40 @@
 #' @param return_data Whether to return the data along with the plot
 #'
 #' @return A ggplot object or a list with plot and data
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(cellchatlist)
+#'
+#' # Basic multi-condition scatter plot (shared cell types)
+#' plot <- scatterDiffM(cellchatlist)
+#'
+#' # Use union strategy to include all cell types
+#' plot <- scatterDiffM(cellchatlist,
+#'                      cell.type.strategy = "union")
+#'
+#' # Compare specific conditions with custom reference
+#' plot <- scatterDiffM(cellchatlist,
+#'                      comparison = c(1, 2, 3),
+#'                      reference = 1,
+#'                      measure.type = "sender",
+#'                      cell.type.strategy = "union")
+#'
+#' # Faceted plot with union strategy
+#' plot <- scatterDiffM(cellchatlist,
+#'                      measure.type = "influence",
+#'                      cell.type.strategy = "union",
+#'                      plot.type = "facet",
+#'                      facet.ncol = 2)
+#'
+#' # Group-colored plot with convex hulls
+#' plot <- scatterDiffM(cellchatlist,
+#'                      cell.type.strategy = "union",
+#'                      plot.type = "group_colored",
+#'                      convex_hull = TRUE)
+#' }
+#'
 #' @importFrom ggplot2 ggplot aes geom_point geom_segment theme_bw labs scale_color_manual
 #'   scale_size scale_alpha guides facet_wrap theme element_text ggtitle
 #' @importFrom ggrepel geom_text_repel
@@ -52,6 +87,7 @@
 #' @export
 scatterDiffM <- function(object.list, comparison = NULL, reference = NULL,
                          pathways = NULL, measure.type = "influence",
+                         cell.type.strategy = c("shared", "union"),
                          arrow.size = 1, arrow.alpha = 0.8,
                          thresh = 0.05, title = "Changes in Signaling Roles",
                          label.cell = TRUE, label.size = 3,
@@ -73,6 +109,7 @@ scatterDiffM <- function(object.list, comparison = NULL, reference = NULL,
   # Match arguments
   plot.type <- match.arg(plot.type)
   comparison_method <- match.arg(comparison_method)
+  cell.type.strategy <- match.arg(cell.type.strategy)
 
   # If comparison is NULL, use all objects
   if (is.null(comparison)) {
@@ -111,15 +148,9 @@ scatterDiffM <- function(object.list, comparison = NULL, reference = NULL,
     names(object.list) <- condition_names
   }
 
-  # Extract cell types
-  cell_types_list <- lapply(object.list[comparison], function(obj) {
-    rownames(obj@netP$prob)
-  })
-  common_cell_types <- Reduce(intersect, cell_types_list)
-
-  if (length(common_cell_types) == 0) {
-    stop("No common cell types found across all conditions")
-  }
+  # Align cell types using the specified strategy
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  common_cell_types <- alignment$cell_types
 
   # Get all pathways if not specified
   if (is.null(pathways)) {

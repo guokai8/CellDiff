@@ -7,6 +7,7 @@
 #' @param object.list List of CellChat objects
 #' @param comparison Vector of indices to compare (length 2)
 #' @param pathways Vector of pathway names to include (NULL for all)
+#' @param cell.type.strategy Character, strategy for aligning cell types: "shared" (uses intersection) or "union" (default, uses all cell types)
 #' @param thresh P-value threshold for significant interactions (default: 0.05)
 #' @param log.scale Whether to use log scale for axes (default: TRUE)
 #' @param arrow.size Size of trajectory arrows (default: 1)
@@ -42,9 +43,39 @@
 #' @param return.data Whether to return data instead of plot (default: FALSE)
 #'
 #' @return A ggplot object or a list of data frames if return.data is TRUE
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(celllist)
+#'
+#' # Basic 2D scatter plot (union strategy by default for this function)
+#' plot <- scatterDiff2D(celllist, comparison = c(1, 2))
+#'
+#' # Use shared strategy instead
+#' plot <- scatterDiff2D(celllist, comparison = c(1, 2),
+#'                       cell.type.strategy = "shared")
+#'
+#' # Customize visualization
+#' plot <- scatterDiff2D(celllist, comparison = c(1, 2),
+#'                       cell.type.strategy = "union",
+#'                       log.scale = TRUE,
+#'                       label.cell = TRUE,
+#'                       add.quadrants = TRUE,
+#'                       arrow.size = 1.2,
+#'                       title = "Sender-Receiver Role Changes")
+#'
+#' # Analyze specific pathways
+#' plot <- scatterDiff2D(celllist, comparison = c(1, 2),
+#'                       pathways = c("CXCL", "CCL"),
+#'                       cell.type.strategy = "union")
+#' }
+#'
 #' @export
 scatterDiff2D <- function(object.list, comparison = c(1, 2),
-                          pathways = NULL, thresh = 0.05,
+                          pathways = NULL,
+                          cell.type.strategy = c("union", "shared"),
+                          thresh = 0.05,
                           log.scale = TRUE,
                           arrow.size = 1, arrow.alpha = 0.8,
                           arrow.color = NULL, arrow.type = "closed",
@@ -72,18 +103,20 @@ scatterDiff2D <- function(object.list, comparison = c(1, 2),
                           base.theme = ggplot2::theme_bw(),
                           return.data = FALSE) {
 
+  # Validate inputs
+  cell.type.strategy <- match.arg(cell.type.strategy)
+
   if (length(comparison) != 2) {
     stop("Please provide exactly 2 indices for comparison")
   }
 
-  # Extract cell types
+  # Align cell types using the specified strategy
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  cell.types <- alignment$cell_types
+
+  # Get cell types available in each object
   cell.types1 <- rownames(object.list[[comparison[1]]]@netP$prob)
   cell.types2 <- rownames(object.list[[comparison[2]]]@netP$prob)
-  cell.types <- union(cell.types1, cell.types2)
-
-  if (length(cell.types) == 0) {
-    stop("No common cell types found between the two objects")
-  }
 
   # Get pathways if not specified
   pathways1 <- dimnames(object.list[[comparison[1]]]@netP$prob)[[3]]
@@ -100,9 +133,9 @@ scatterDiff2D <- function(object.list, comparison = c(1, 2),
   }
 
 
-  # Get scores for both conditions
-  scores1 <- calculateScores(object.list[[comparison[1]]], cell.types1, pathways1, thresh)
-  scores2 <- calculateScores(object.list[[comparison[2]]], cell.types2, pathways2, thresh)
+  # Get scores for both conditions (use aligned cell types)
+  scores1 <- calculateScores(object.list[[comparison[1]]], cell.types, pathways1, thresh)
+  scores2 <- calculateScores(object.list[[comparison[2]]], cell.types, pathways2, thresh)
 
   # Get counts for both conditions and average them
   counts1 <- getInteractionCounts(object.list[[comparison[1]]], signaling = pathways1, slot.name = "net", thresh = thresh)

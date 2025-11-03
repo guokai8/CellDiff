@@ -299,17 +299,19 @@ validateCellChatObjects <- function(object.list, comparison = NULL) {
       stop(sprintf("Object at index %d is not a CellChat object", i), call. = FALSE)
     }
 
-    # Check for required slots
+    # Check for required slots - use slotNames() for S4 objects
     required_slots <- c("net", "netP")
-    for (slot in required_slots) {
-      if (!slot %in% names(obj)) {
-        stop(sprintf("Object at index %d is missing required slot '%s'", i, slot),
+    obj_slots <- slotNames(obj)
+    for (slot_name in required_slots) {
+      if (!slot_name %in% obj_slots) {
+        stop(sprintf("Object at index %d is missing required slot '%s'", i, slot_name),
              call. = FALSE)
       }
     }
 
-    # Check for weight matrix
-    if (!"weight" %in% names(obj$net)) {
+    # Check for weight matrix in net slot
+    net_slot <- methods::slot(obj, "net")
+    if (is.null(net_slot) || !"weight" %in% names(net_slot)) {
       stop(sprintf("Object at index %d is missing the weight matrix in the net slot", i),
            call. = FALSE)
     }
@@ -336,6 +338,19 @@ validateCellChatObjects <- function(object.list, comparison = NULL) {
 #' @param indices Vector of indices to consider
 #'
 #' @return Vector of common cell type names
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(cellchatlist)
+#'
+#' # Get common cell types across all objects
+#' common_cells <- getCommonCellTypes(cellchatlist)
+#'
+#' # Get common cell types for specific conditions
+#' common_cells <- getCommonCellTypes(cellchatlist, indices = c(1, 2))
+#' }
+#'
 #' @export
 getCommonCellTypes <- function(object.list, indices = NULL) {
   if (is.null(indices)) {
@@ -377,6 +392,193 @@ getCommonPathways <- function(object.list, indices = NULL) {
   common_pathways <- Reduce(intersect, pathways)
 
   return(common_pathways)
+}
+
+#' Get union of cell types across CellChat objects
+#'
+#' This function extracts all unique cell types present in any of the CellChat objects.
+#'
+#' @param object.list List of CellChat objects
+#' @param indices Vector of indices to consider
+#'
+#' @return Vector of all unique cell type names
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(cellchatlist)
+#'
+#' # Get all unique cell types across all objects
+#' all_cells <- getUnionCellTypes(cellchatlist)
+#'
+#' # Get all unique cell types for specific conditions
+#' all_cells <- getUnionCellTypes(cellchatlist, indices = c(1, 2))
+#'
+#' # Compare with common cell types
+#' common_cells <- getCommonCellTypes(cellchatlist)
+#' union_cells <- getUnionCellTypes(cellchatlist)
+#' lost_cells <- setdiff(union_cells, common_cells)
+#' cat("Cell types lost with 'shared' strategy:", paste(lost_cells, collapse = ", "))
+#' }
+#'
+#' @export
+getUnionCellTypes <- function(object.list, indices = NULL) {
+  if (is.null(indices)) {
+    indices <- seq_along(object.list)
+  }
+
+  validateCellChatObjects(object.list, indices)
+
+  cell_types <- lapply(object.list[indices], function(x) rownames(x@net$weight))
+  union_cells <- Reduce(union, cell_types)
+
+  return(union_cells)
+}
+
+#' Align cell types across CellChat objects with flexible strategy
+#'
+#' This function aligns cell types across multiple CellChat objects using either
+#' "shared" (intersection) or "union" strategy. When using "union", missing cell
+#' types in an object will be assigned zero values.
+#'
+#' @param object.list List of CellChat objects
+#' @param indices Vector of indices to consider
+#' @param strategy Character, either "shared" (intersection, default) or "union" (all cell types)
+#'
+#' @return List with components:
+#'   \itemize{
+#'     \item cell_types: Vector of aligned cell type names
+#'     \item strategy: The strategy used
+#'     \item missing_by_object: List showing which cell types are missing in each object
+#'     \item n_missing: Count of how many objects miss each cell type
+#'   }
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(cellchatlist)
+#'
+#' # Align with shared strategy (default, intersection)
+#' alignment <- alignCellTypes(cellchatlist,
+#'                            indices = c(1, 2),
+#'                            strategy = "shared")
+#' print(alignment$cell_types)
+#'
+#' # Align with union strategy (all cell types)
+#' alignment <- alignCellTypes(cellchatlist,
+#'                            indices = c(1, 2),
+#'                            strategy = "union")
+#' print(alignment$cell_types)
+#' print(alignment$missing_by_object)
+#'
+#' # Check which cell types would be lost with 'shared' strategy
+#' alignment_shared <- alignCellTypes(cellchatlist, strategy = "shared")
+#' alignment_union <- alignCellTypes(cellchatlist, strategy = "union")
+#' lost_cells <- setdiff(alignment_union$cell_types, alignment_shared$cell_types)
+#' if (length(lost_cells) > 0) {
+#'   cat("Cell types lost with 'shared':", paste(lost_cells, collapse = ", "), "\n")
+#' }
+#'
+#' # Use alignment results in analysis
+#' alignment <- alignCellTypes(cellchatlist, strategy = "union")
+#' result <- heatDiff(cellchatlist,
+#'                   comparison = c(1, 2),
+#'                   cell.type.strategy = "union")
+#' }
+#'
+#' @export
+alignCellTypes <- function(object.list, indices = NULL, strategy = c("shared", "union")) {
+  strategy <- match.arg(strategy)
+
+  if (is.null(indices)) {
+    indices <- seq_along(object.list)
+  }
+
+  validateCellChatObjects(object.list, indices)
+
+  # Get cell types from each object
+  cell_types_list <- lapply(object.list[indices], function(x) rownames(x@net$weight))
+
+  # Determine cell types based on strategy
+  if (strategy == "shared") {
+    aligned_cells <- Reduce(intersect, cell_types_list)
+
+    if (length(aligned_cells) == 0) {
+      stop("No common cell types found across objects. Consider using strategy='union'")
+    }
+  } else {
+    aligned_cells <- Reduce(union, cell_types_list)
+  }
+
+  # Track which cell types are missing in each object
+  missing_by_object <- lapply(cell_types_list, function(ct) {
+    setdiff(aligned_cells, ct)
+  })
+  names(missing_by_object) <- names(object.list)[indices]
+
+  # Count how many objects are missing each cell type
+  n_missing <- sapply(aligned_cells, function(cell) {
+    sum(sapply(cell_types_list, function(ct) !cell %in% ct))
+  })
+
+  # Provide informative messages
+  if (strategy == "union" && any(n_missing > 0)) {
+    n_complete <- sum(n_missing == 0)
+    n_partial <- sum(n_missing > 0 & n_missing < length(indices))
+    n_sparse <- sum(n_missing >= length(indices) - 1)
+
+    message(sprintf("Using union strategy: %d cell types aligned", length(aligned_cells)))
+    message(sprintf("  - %d cell types present in all objects", n_complete))
+    if (n_partial > 0) {
+      message(sprintf("  - %d cell types present in some objects (will use 0 for missing)", n_partial))
+    }
+    if (n_sparse > 0) {
+      message(sprintf("  - %d cell types present in only one object", n_sparse))
+    }
+  } else if (strategy == "shared") {
+    n_excluded <- sum(sapply(cell_types_list, length)) - length(aligned_cells) * length(indices)
+    message(sprintf("Using shared strategy: %d common cell types found", length(aligned_cells)))
+    if (n_excluded > 0) {
+      message(sprintf("  - %d cell types excluded (not present in all objects)",
+                     length(unique(unlist(cell_types_list))) - length(aligned_cells)))
+    }
+  }
+
+  return(list(
+    cell_types = aligned_cells,
+    strategy = strategy,
+    missing_by_object = missing_by_object,
+    n_missing = n_missing
+  ))
+}
+
+#' Get union of pathways across CellChat objects
+#'
+#' This function extracts all unique pathways present in any of the CellChat objects.
+#'
+#' @param object.list List of CellChat objects
+#' @param indices Vector of indices to consider
+#'
+#' @return Vector of all unique pathway names
+#' @export
+getUnionPathways <- function(object.list, indices = NULL) {
+  if (is.null(indices)) {
+    indices <- seq_along(object.list)
+  }
+
+  validateCellChatObjects(object.list, indices)
+
+  pathways <- lapply(object.list[indices], function(x) {
+    if ("pathways" %in% names(x@netP)) {
+      return(names(x@netP$pathways))
+    } else {
+      return(character(0))
+    }
+  })
+
+  union_pathways <- Reduce(union, pathways)
+
+  return(union_pathways)
 }
 
 #' Simplified Aggregate Cell-Cell Communication Network
