@@ -622,40 +622,53 @@ aggregateNetSimple <- function(object, signaling = NULL, thresh = 0.05,
     df.net <- subsetCommunication(object, slot.name = slot.name,
                                   signaling = signaling, thresh = thresh)
 
-    # Create source_target combined key
-    df.net$source_target <- paste(df.net$source, df.net$target, sep = "_")
+    # Check if any communications were found
+    if (is.null(df.net) || nrow(df.net) == 0) {
+      warning("No communications found for the specified pathways. Returning zero matrices.")
+      # Get cell levels from object
+      cells.level <- levels(object@idents)
 
-    # Group by source_target and calculate count and sum of probabilities
-    df.counts <- df.net %>%
-      dplyr::group_by(source_target) %>%
-      dplyr::summarize(count = n(), prob = sum(prob), .groups = "drop")
+      # Create empty matrices
+      net$count <- matrix(0, nrow = length(cells.level), ncol = length(cells.level),
+                         dimnames = list(cells.level, cells.level))
+      net$weight <- matrix(0, nrow = length(cells.level), ncol = length(cells.level),
+                          dimnames = list(cells.level, cells.level))
+    } else {
+      # Create source_target combined key
+      df.net$source_target <- paste(df.net$source, df.net$target, sep = "_")
 
-    # Split source_target back into source and target
-    source_target_split <- stringr::str_split(df.counts$source_target, "_", simplify = TRUE)
-    df.counts$source <- source_target_split[, 1]
-    df.counts$target <- source_target_split[, 2]
+      # Group by source_target and calculate count and sum of probabilities
+      df.counts <- df.net %>%
+        dplyr::group_by(source_target) %>%
+        dplyr::summarize(count = n(), prob = sum(prob), .groups = "drop")
 
-    # Get cell levels from object
-    cells.level <- levels(object@idents)
+      # Split source_target back into source and target
+      source_target_split <- stringr::str_split(df.counts$source_target, "_", simplify = TRUE)
+      df.counts$source <- source_target_split[, 1]
+      df.counts$target <- source_target_split[, 2]
 
-    # Handle isolate cells
-    if (remove.isolate) {
-      # Keep only cell types involved in interactions
-      cells.keep <- unique(c(df.counts$source, df.counts$target))
-      cells.level <- cells.level[cells.level %in% cells.keep]
+      # Get cell levels from object
+      cells.level <- levels(object@idents)
+
+      # Handle isolate cells
+      if (remove.isolate) {
+        # Keep only cell types involved in interactions
+        cells.keep <- unique(c(df.counts$source, df.counts$target))
+        cells.level <- cells.level[cells.level %in% cells.keep]
+      }
+
+      # Convert source and target to factors with proper levels
+      df.counts$source <- factor(df.counts$source, levels = cells.level)
+      df.counts$target <- factor(df.counts$target, levels = cells.level)
+
+      # Create count and weight matrices
+      count <- tapply(df.counts$count, list(df.counts$source, df.counts$target), sum)
+      weight <- tapply(df.counts$prob, list(df.counts$source, df.counts$target), sum)
+
+      # Update network with new matrices
+      net$count <- count
+      net$weight <- weight
     }
-
-    # Convert source and target to factors with proper levels
-    df.counts$source <- factor(df.counts$source, levels = cells.level)
-    df.counts$target <- factor(df.counts$target, levels = cells.level)
-
-    # Create count and weight matrices
-    count <- tapply(df.counts$count, list(df.counts$source, df.counts$target), sum)
-    weight <- tapply(df.counts$prob, list(df.counts$source, df.counts$target), sum)
-
-    # Update network with new matrices
-    net$count <- count
-    net$weight <- weight
   }
 
   # Replace NA values with 0
@@ -697,18 +710,105 @@ getInteractionCounts <- function(object, signaling = NULL, slot.name = "net",
     message("Computing interaction counts from all signaling pathways")
   } else {
     message("Computing interaction counts from specified signaling pathways")
+
+    # Check if signaling pathways exist in netP slot (pathway-specific data)
+    netP_pathways <- NULL
+    if (!is.null(dimnames(object@netP$prob)[[3]])) {
+      netP_pathways <- dimnames(object@netP$prob)[[3]]
+    }
+
+    # Check if pathways exist in net slot
+    net_pathways <- NULL
     if (!is.null(object@net$pathways)) {
-      signaling <- signaling[signaling %in% object@net$pathways]
-      if (length(signaling) == 0) {
-        stop("No significant communication for the input signaling. All significant signaling are shown in `object@net$pathways`")
+      net_pathways <- object@net$pathways
+    }
+
+    # Determine which slot to use based on pathway availability
+    available_pathways <- NULL
+    use_netP <- FALSE
+
+    if (!is.null(netP_pathways)) {
+      # Check if requested pathways are in netP
+      signaling_in_netP <- signaling[signaling %in% netP_pathways]
+      if (length(signaling_in_netP) > 0) {
+        available_pathways <- netP_pathways
+        use_netP <- TRUE
+        slot.name <- "netP"  # Override to use netP slot
+      }
+    }
+
+    if (!use_netP && !is.null(net_pathways)) {
+      available_pathways <- net_pathways
+    }
+
+    # Filter to valid pathways
+    if (!is.null(available_pathways)) {
+      signaling_valid <- signaling[signaling %in% available_pathways]
+      signaling_invalid <- signaling[!signaling %in% available_pathways]
+
+      if (length(signaling_invalid) > 0) {
+        warning(paste("Some pathways not found in object:",
+                     paste(signaling_invalid, collapse = ", ")))
+      }
+
+      if (length(signaling_valid) == 0) {
+        warning("No valid signaling pathways found. Using all available pathways.")
+        signaling <- NULL
+      } else {
+        signaling <- signaling_valid
       }
     }
   }
 
-  # Use aggregateNet to get interaction counts
-  counts_matrix <- aggregateNetSimple(object, signaling = signaling,
-                                      slot.name = slot.name, thresh = thresh,
-                                      return.object = FALSE, remove.isolate = FALSE)$count
+  # Get counts matrix based on slot
+  if (is.null(signaling)) {
+    # Use aggregateNet for all pathways
+    counts_matrix <- aggregateNetSimple(object, signaling = NULL,
+                                        slot.name = slot.name, thresh = thresh,
+                                        return.object = FALSE, remove.isolate = FALSE)$count
+  } else if (slot.name == "netP") {
+    # For netP slot, manually aggregate the specified pathways
+    prob <- object@netP$prob
+    pval <- object@netP$pval
+
+    # Filter to specified pathways
+    if (!is.null(signaling) && length(signaling) > 0) {
+      pathway_indices <- which(dimnames(prob)[[3]] %in% signaling)
+      if (length(pathway_indices) > 0) {
+        prob <- prob[, , pathway_indices, drop = FALSE]
+        pval <- pval[, , pathway_indices, drop = FALSE]
+      } else {
+        # No valid pathways found
+        cell_types <- levels(object@idents)
+        counts <- rep(0, length(cell_types))
+        names(counts) <- cell_types
+        warning("No valid pathways found in netP slot. Returning zero counts.")
+        return(counts)
+      }
+    }
+
+    # Apply threshold
+    pval[prob == 0] <- 1
+    prob[pval >= thresh] <- 0
+
+    # Aggregate across pathways
+    counts_matrix <- apply(prob > 0, c(1, 2), sum)
+  } else {
+    # Use aggregateNet for net slot with pathway filtering
+    counts_matrix <- aggregateNetSimple(object, signaling = signaling,
+                                        slot.name = slot.name, thresh = thresh,
+                                        return.object = FALSE, remove.isolate = FALSE)$count
+  }
+
+  # Check if counts_matrix is valid
+  if (is.null(counts_matrix) || all(dim(counts_matrix) == 0)) {
+    warning("No interaction counts found. Returning zero counts for all cell types.")
+    # Return zero counts for all cell types in the object
+    cell_types <- levels(object@idents)
+    counts <- rep(0, length(cell_types))
+    names(counts) <- cell_types
+    return(counts)
+  }
 
   # Calculate total connections for each cell type (incoming + outgoing - self)
   cell_types <- rownames(counts_matrix)

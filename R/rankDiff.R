@@ -194,23 +194,39 @@ rankDiff <- function(object.list, comparison = c(1, 2), measure = "weight",
 
   for (i in 1:length(valid_pathways)) {
     pathway <- valid_pathways[i]
-    prob_values <- matrix(0, nrow = nrow(prob.list[[1]]) * ncol(prob.list[[1]]),
-                          ncol = length(comparison))
+
+    # Extract values from each condition separately to handle different dimensions
+    prob_values_list <- list()
 
     for (j in 1:length(comparison)) {
       if (pathway %in% pair.name[[j]]) {
-        prob_values[, j] <- as.vector(prob.list[[j]][, , pathway])
+        # Extract all values for this pathway and flatten to vector
+        prob_values_list[[j]] <- as.vector(prob.list[[j]][, , pathway])
       } else {
-        prob_values[, j] <- NA
+        prob_values_list[[j]] <- numeric(0)
       }
     }
 
-    # Remove rows with all zeros
+    # Find the maximum length to create the matrix
+    max_len <- max(length(prob_values_list[[1]]), length(prob_values_list[[2]]))
+
+    # Create matrix with appropriate size
+    prob_values <- matrix(NA, nrow = max_len, ncol = length(comparison))
+
+    # Fill in the values
+    for (j in 1:length(comparison)) {
+      if (length(prob_values_list[[j]]) > 0) {
+        prob_values[1:length(prob_values_list[[j]]), j] <- prob_values_list[[j]]
+      }
+    }
+
+    # Remove rows with all zeros or all NAs
     prob_values <- prob_values[rowSums(prob_values, na.rm = TRUE) != 0, , drop = FALSE]
 
     # Check if paired test is applicable
     paired_test <- TRUE
-    if (nrow(prob.list[[1]]) != nrow(prob.list[[2]])) {
+    if (nrow(prob.list[[1]]) != nrow(prob.list[[2]]) ||
+        ncol(prob.list[[1]]) != ncol(prob.list[[2]])) {
       paired_test <- FALSE
     }
 

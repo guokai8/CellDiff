@@ -316,18 +316,26 @@ scatterDiffM <- function(object.list, comparison = NULL, reference = NULL,
     scores2 <- all_scores[[pair[2]]]
 
     # Get interaction counts
-    counts1 <- getInteractionCounts(
+    counts1_all <- getInteractionCounts(
       object.list[[idx1]],
       signaling = pathways,
       slot.name = "net",
       thresh = thresh
     )
-    counts2 <- getInteractionCounts(
+    counts2_all <- getInteractionCounts(
       object.list[[idx2]],
       signaling = pathways,
       slot.name = "net",
       thresh = thresh
     )
+
+    # Extract counts for common cell types only (set to 0 if not present)
+    counts1 <- sapply(common_cell_types, function(ct) {
+      if (ct %in% names(counts1_all)) counts1_all[ct] else 0
+    })
+    counts2 <- sapply(common_cell_types, function(ct) {
+      if (ct %in% names(counts2_all)) counts2_all[ct] else 0
+    })
 
     # Use the maximum count for each cell type
     counts <- pmax(counts1, counts2)

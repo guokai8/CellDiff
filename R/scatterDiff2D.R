@@ -138,8 +138,16 @@ scatterDiff2D <- function(object.list, comparison = c(1, 2),
   scores2 <- calculateScores(object.list[[comparison[2]]], cell.types, pathways2, thresh)
 
   # Get counts for both conditions and average them
-  counts1 <- getInteractionCounts(object.list[[comparison[1]]], signaling = pathways1, slot.name = "net", thresh = thresh)
-  counts2 <- getInteractionCounts(object.list[[comparison[2]]], signaling =  pathways2, slot.name = "net", thresh = thresh)
+  counts1_all <- getInteractionCounts(object.list[[comparison[1]]], signaling = pathways1, slot.name = "net", thresh = thresh)
+  counts2_all <- getInteractionCounts(object.list[[comparison[2]]], signaling =  pathways2, slot.name = "net", thresh = thresh)
+
+  # Align counts to cell.types (some may be missing in union strategy)
+  counts1 <- sapply(cell.types, function(ct) {
+    if (ct %in% names(counts1_all)) counts1_all[ct] else 0
+  })
+  counts2 <- sapply(cell.types, function(ct) {
+    if (ct %in% names(counts2_all)) counts2_all[ct] else 0
+  })
   counts <- abs(counts2 - counts1)
 
   # Scale counts for dot size (add small value to ensure all dots are visible)

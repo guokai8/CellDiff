@@ -338,8 +338,13 @@ scatterDiff2DM <- function(object.list, comparison = NULL, reference = NULL,
     all_scores[[i]] <- scores
 
     # Get interaction counts
-    counts <- getInteractionCounts(obj, signaling = pathways,
-                                   slot.name = "net", thresh = thresh)
+    counts_all <- getInteractionCounts(obj, signaling = pathways,
+                                       slot.name = "net", thresh = thresh)
+
+    # Extract counts for common cell types only (set to 0 if not present)
+    counts <- sapply(common_cell_types, function(ct) {
+      if (ct %in% names(counts_all)) counts_all[ct] else 0
+    })
 
     # Create data frame for this condition
     data <- data.frame(
@@ -348,7 +353,7 @@ scatterDiff2DM <- function(object.list, comparison = NULL, reference = NULL,
       receiver = scores$receiver,
       condition = condition_names[idx],
       condition_idx = idx,
-      count = counts[common_cell_types],
+      count = counts,
       shape = group.shapes[condition_names[idx]]
     )
 
