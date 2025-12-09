@@ -23,7 +23,7 @@ CellDiff is an R package that extends the functionality of [CellChat](https://gi
 * **Sender-receiver analysis**: Analyze how cells change their roles as signaling senders or receivers
 * **Integrated visualizations**: ComplexHeatmap integration with consistent color schemes
 * **No external dependencies on dplyr/tidyr**: Pure base R + specialized visualization packages
-
+* **alignCellTypes** Align cell types across CellChat objects with flexible strategy
 ## Installation
 
 ```r
