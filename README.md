@@ -552,6 +552,18 @@ With `show.all = TRUE`:
 - Significant pathways are opaque with stars (*p<0.05, **p<0.01, ***p<0.001)
 - A subtitle explains the visualization
 
+### How do I enable debug mode for troubleshooting?
+```r
+# Enable debug mode (package-wide)
+options(CellDiff.debug = TRUE)
+
+# Run your analysis - will show debug output
+results <- rankDiffM(object.list = cellchatlist, show.all = TRUE)
+
+# Disable debug mode
+options(CellDiff.debug = FALSE)
+```
+
 ### How do I select a reference condition?
 For multiple group comparisons, you can specify a reference using either the index or name:
 ```r

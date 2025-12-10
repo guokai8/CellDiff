@@ -32,10 +32,11 @@ All notable changes to the CellDiff package will be documented in this file.
 
 #### Debug Mode
 - Added comprehensive debug output for troubleshooting
-  - Enable with: `options(rankDiffM.debug = TRUE)`
+  - Enable with: `options(CellDiff.debug = TRUE)` (package-wide option)
   - Shows pathway selection logic
   - Shows star assignment decisions
   - Shows comparison-pair matching
+  - Does not affect other functions (isolated to CellDiff package)
 
 ### Fixed
 

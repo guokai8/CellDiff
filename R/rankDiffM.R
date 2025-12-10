@@ -782,7 +782,7 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
                                               color.pathway = NULL,
                                               show.all = FALSE) {
     # Debug output
-    if (getOption("rankDiffM.debug", FALSE)) {
+    if (getOption("CellDiff.debug", FALSE)) {
       cat(sprintf("\n[COMBINED PLOT] show.all = %s\n", show.all))
     }
 
@@ -792,13 +792,13 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
       all_paths <- unique(unlist(lapply(all_results, function(x) {
         if (!is.null(x)) x$name else NULL
       })))
-      if (getOption("rankDiffM.debug", FALSE)) {
+      if (getOption("CellDiff.debug", FALSE)) {
         cat(sprintf("[COMBINED PLOT] show.all=TRUE: Using all pathways from all_results (%d pathways)\n", length(all_paths)))
       }
     } else {
       # Get only significant pathways
       all_paths <- unique(unlist(all_significant_paths_full))
-      if (getOption("rankDiffM.debug", FALSE)) {
+      if (getOption("CellDiff.debug", FALSE)) {
         cat(sprintf("[COMBINED PLOT] show.all=FALSE: Using only significant pathways (%d pathways)\n", length(all_paths)))
       }
     }
@@ -1032,17 +1032,23 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
                   # Only extract p-value if pathway is truly significant (in the significant list)
                   p_val <- res$padj[res$name == path]
 
-                  # Debug output for specific pathways
-                  if (getOption("rankDiffM.debug", FALSE) && path == "PTN") {
+                  # Debug output (only show if pathway will get a star or has low p-value but not in sig list)
+                  if (getOption("CellDiff.debug", FALSE) && !is.na(p_val) && p_val < pThresh) {
                     cat(sprintf("  STAR DEBUG [%s in %s]: p_idx=%d, in_sig_list=TRUE, p_val=%.4f, will add star=%s\n",
                                path, comp, p_idx, p_val, ifelse(!is.na(p_val) && p_val < pThresh, "YES", "NO")))
                   }
                 } else {
-                  # Debug: pathway not in significant list or not in results
-                  if (getOption("rankDiffM.debug", FALSE) && path == "PTN") {
+                  # Debug: pathway has low p-value but not in significant list (potential issue)
+                  if (getOption("CellDiff.debug", FALSE)) {
                     in_res <- !is.null(res) && path %in% res$name
-                    cat(sprintf("  STAR DEBUG [%s in %s]: p_idx=%d, in_all_results=%s, in_sig_list=%s, no star\n",
-                               path, comp, p_idx, in_res, is_in_significant_list))
+                    # Only show if pathway is in all_results (has p-value) but not in sig list
+                    if (in_res) {
+                      p_check <- res$padj[res$name == path]
+                      if (!is.na(p_check) && p_check < pThresh) {
+                        cat(sprintf("  STAR DEBUG [%s in %s]: p_idx=%d, in_all_results=TRUE, in_sig_list=FALSE, no star (failed fold-change threshold)\n",
+                                   path, comp, p_idx))
+                      }
+                    }
                   }
                 }
                 break
