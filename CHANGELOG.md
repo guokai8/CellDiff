@@ -1,5 +1,118 @@
 # Changelog
 
+All notable changes to the CellDiff package will be documented in this file.
+
+## Version 0.1.4 (2025-12-10)
+
+### Added
+
+#### Cell Type Alignment
+- **NEW `cell.type.strategy` parameter** for handling missing cell types across conditions
+  - `"shared"`: Uses only cell types present in all conditions (safer, more conservative)
+  - `"union"`: Uses all cell types from any condition, filling missing data with zeros
+  - Automatically reports alignment statistics
+  - Warns about missing cell types and their distribution
+  - Available in: `rankDiffM`, `heatDiffM`, `scatterDiff2DM`, `ContriDiffM`
+
+#### Advanced Comparison Visualization (rankDiffM)
+- **NEW `show.all` parameter** for comprehensive pathway visualization
+  - `show.all = FALSE` (default): Shows only pathways significant in each specific comparison
+  - `show.all = TRUE`: Shows all pathways with visual indicators:
+    - Faded bars (alpha=0.3) for non-significant pathway-comparison combinations
+    - Opaque bars (alpha=1.0) for significant combinations
+    - Significance stars (*p<0.05, **p<0.01, ***p<0.001)
+    - Informative subtitle explaining the visualization
+
+#### Named List Output
+- **All output lists now have meaningful comparison names**
+  - Access results by comparison name: `results$all_significant_paths_full[["KO vs WT"]]`
+  - Instead of numeric index: `results$all_significant_paths_full[[1]]`
+  - Applies to: `all_significant_paths_full`, `all_significant_paths`, `data`, `plots`, `heatmaps`
+  - Improves code readability and reduces errors
+
+#### Debug Mode
+- Added comprehensive debug output for troubleshooting
+  - Enable with: `options(rankDiffM.debug = TRUE)`
+  - Shows pathway selection logic
+  - Shows star assignment decisions
+  - Shows comparison-pair matching
+
+### Fixed
+
+#### Comparison-Specific Pathway Display
+- **FIXED**: Pathways now only appear in comparison panels where they're actually significant when `show.all = FALSE`
+- **Previous behavior**: All significant pathways from any comparison appeared in all panels
+- **New behavior**: Each comparison panel shows only its own significant pathways
+- Example: If PTN is only significant in "KO vs WT", it now only appears in that panel
+
+#### Star Assignment Bug
+- **FIXED**: Stars now only appear for pathways passing BOTH p-value AND fold-change thresholds
+- **Previous behavior**: Stars appeared for any pathway with p-value < threshold, ignoring fold-change
+- **New behavior**: Stars only appear if pathway is in `all_significant_paths_full` (passed complete criteria)
+- Affects both barplot and heatmap visualizations
+
+### Changed
+
+- Improved code documentation with more detailed parameter descriptions
+- Enhanced error messages for better troubleshooting
+- Updated README.md with comprehensive examples of new features
+- Added FAQ section for common questions about new features
+
+### Technical Details
+
+**Files Modified:**
+- `R/rankDiffM.R`:
+  - Lines 784-787: Added debug output
+  - Lines 834-844: Fixed show.all = FALSE to use comparison-specific pathways
+  - Line 993: Fixed star assignment for barplots (check `all_significant_paths_full`)
+  - Line 1190: Fixed star assignment for heatmaps (check `all_significant_paths_full`)
+  - Lines 758-770: Added named list creation
+- `README.md`: Updated with new features and examples
+- `man/rankDiffM.Rd`: Auto-generated documentation updates
+
+### Migration Guide
+
+**No breaking changes** - all existing code will continue to work.
+
+#### New Features to Adopt
+
+1. **Use cell type alignment strategies**
+   ```r
+   # Old (still works, uses default "shared")
+   rankDiffM(object.list = cellchatlist)
+
+   # New (explicit strategy)
+   rankDiffM(object.list = cellchatlist, cell.type.strategy = "union")
+   ```
+
+2. **Access results by name**
+   ```r
+   # Old (still works)
+   results$all_significant_paths_full[[1]]
+
+   # New (clearer)
+   results$all_significant_paths_full[["KO vs WT"]]
+   ```
+
+3. **Use show.all for comprehensive visualization**
+   ```r
+   # Show all pathways with significance indicators
+   rankDiffM(object.list = cellchatlist, show.all = TRUE)
+   ```
+
+#### Behavior Changes to Be Aware Of
+
+1. **show.all = FALSE now shows comparison-specific pathways**
+   - Each comparison panel shows different pathways
+   - Pathways only appear where they're significant
+   - This is more accurate but may look different from previous versions
+
+2. **Stars are now more strict**
+   - Only appear for pathways passing both p-value AND fold-change thresholds
+   - You may see fewer stars, but they're more meaningful
+
+---
+
 ## Version 0.1.3 (2025-05-02)
 
 ### Bug Fixes

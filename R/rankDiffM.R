@@ -43,6 +43,13 @@
 #' @param text_size Text size for plot elements
 #' @param label_angle Angle for x-axis labels
 #' @param border_color Border color for tiles in heatmap
+#' @param cell.type.strategy Character, strategy for aligning cell types across objects.
+#'   "shared" (default) uses only cell types common to all objects (intersection).
+#'   "union" uses all cell types from all objects (fills missing with 0).
+#' @param show.all Logical, whether to show all pathways (TRUE) or only significant pathways
+#'   (FALSE, default) in the comparison_barplot and comparison_heatmap. When TRUE,
+#'   non-significant pathways are shown with faded colors and significance stars
+#'   (*p<0.05, **p<0.01, ***p<0.001) indicate which pathways are significant in each comparison.
 #'
 #' @return A list containing:
 #'   \item{plots}{List of individual barplots for each comparison}
@@ -62,7 +69,8 @@
 #' results <- rankDiffM(
 #'   object.list = cellchat.list,
 #'   comparison_method = "all_vs_ref",
-#'   reference = "WT"
+#'   reference = "WT",
+#'   cell.type.strategy = "shared"
 #' )
 #'
 #' # Using log2 fold change and custom visualization options
@@ -72,7 +80,8 @@
 #'   reference = "WT",
 #'   use_log2fc = TRUE,
 #'   comparison_plot_type = "heatmap",
-#'   heatmap_colors = c("blue", "white", "red")
+#'   heatmap_colors = c("blue", "white", "red"),
+#'   cell.type.strategy = "union"
 #' )
 #'
 #' # Using sequential comparison with custom pathway ordering
@@ -80,7 +89,17 @@
 #'   object.list = cellchat.list,
 #'   comparison_method = "sequential",
 #'   order_by = "pathway_name",
-#'   show_comparison_slope = TRUE
+#'   show_comparison_slope = TRUE,
+#'   cell.type.strategy = "shared"
+#' )
+#'
+#' # Show all pathways (not just significant) in comparison plots
+#' results <- rankDiffM(
+#'   object.list = cellchat.list,
+#'   comparison_method = "all_vs_ref",
+#'   reference = "WT",
+#'   show_comparison_barplot = TRUE,
+#'   show.all = TRUE
 #' )
 #'
 #' @export
@@ -106,7 +125,9 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
                       heatmap_colors = c("deepskyblue", "white", "darkorange"), # Colors for heatmap
                       text_size = 10,                   # Text size for plot elements
                       label_angle = 45,                 # Angle for x-axis labels
-                      border_color = "grey60") {        # Border color for tiles in heatmap
+                      border_color = "grey60",          # Border color for tiles in heatmap
+                      cell.type.strategy = c("shared", "union"),  # Strategy for aligning cell types
+                      show.all = FALSE) {  # Show all pathways in comparison plots
 
   # Load required packages
   require(plyr)
@@ -116,6 +137,7 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
   comparison_method <- match.arg(comparison_method)
   order_by <- match.arg(order_by)
   comparison_plot_type <- match.arg(comparison_plot_type)
+  cell.type.strategy <- match.arg(cell.type.strategy)
 
   # If comparison is NULL, use all objects
   if (is.null(comparison)) {
@@ -227,12 +249,17 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     stop("No valid comparison pairs were generated")
   }
 
+  # Align cell types across all objects in comparison
+  alignment <- alignCellTypes(object.list, indices = comparison, strategy = cell.type.strategy)
+  aligned_cells <- alignment$cell_types
+
   # Initialize lists to store results
   all_results <- list()
   all_plots <- list()
   all_heatmaps <- list()
   all_significant_paths <- list()
   all_significant_paths_full <- list()
+  all_df_combined <- list()  # Store original contribution data for comparison plots
   # Process each comparison pair
   for (p in 1:length(comparison_pairs)) {
     pair <- comparison_pairs[[p]]
@@ -507,6 +534,9 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     all_results[[p]] <- wide_df
     all_significant_paths_full[[p]] <- significant_paths
 
+    # Store df_combined for comparison plots (needed to access all pathways)
+    all_df_combined[[p]] <- df_combined
+
     # Don't limit significant_paths for plotting
     plot_significant_paths <- significant_paths
 
@@ -724,7 +754,23 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
       all_heatmaps[[p]] <- heatmap
     }
   }
+
+  # Add names to lists for better readability
+  comparison_names <- sapply(1:length(comparison_pairs), function(p) {
+    pair <- comparison_pairs[[p]]
+    idx1 <- comparison[pair[1]]
+    idx2 <- comparison[pair[2]]
+    paste(condition_names[idx2], "vs", condition_names[idx1])
+  })
+  names(all_results) <- comparison_names
+  names(all_significant_paths_full) <- comparison_names
+  names(all_significant_paths) <- comparison_names
+  if (length(all_plots) > 0) names(all_plots) <- comparison_names
+  if (length(all_heatmaps) > 0) names(all_heatmaps) <- comparison_names
+  names(all_df_combined) <- comparison_names
+
   create_combined_comparison_plot <- function(all_significant_paths_full, all_results,
+                                              all_df_combined,
                                               comparison_pairs, condition_names, comparison,
                                               reference, color.use,
                                               text_size = 10,
@@ -733,9 +779,29 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
                                               border_color = "grey60",
                                               pThresh = 0.05,
                                               comparison_method = "all_vs_ref",
-                                              color.pathway = NULL) {
-    # Get all unique pathways across all comparisons
-    all_paths <- unique(unlist(all_significant_paths_full))
+                                              color.pathway = NULL,
+                                              show.all = FALSE) {
+    # Debug output
+    if (getOption("rankDiffM.debug", FALSE)) {
+      cat(sprintf("\n[COMBINED PLOT] show.all = %s\n", show.all))
+    }
+
+    # Get pathways to include in the plot
+    if (show.all) {
+      # Get all pathways from all_results (includes non-significant pathways)
+      all_paths <- unique(unlist(lapply(all_results, function(x) {
+        if (!is.null(x)) x$name else NULL
+      })))
+      if (getOption("rankDiffM.debug", FALSE)) {
+        cat(sprintf("[COMBINED PLOT] show.all=TRUE: Using all pathways from all_results (%d pathways)\n", length(all_paths)))
+      }
+    } else {
+      # Get only significant pathways
+      all_paths <- unique(unlist(all_significant_paths_full))
+      if (getOption("rankDiffM.debug", FALSE)) {
+        cat(sprintf("[COMBINED PLOT] show.all=FALSE: Using only significant pathways (%d pathways)\n", length(all_paths)))
+      }
+    }
 
     if (length(all_paths) == 0) {
       return(NULL)
@@ -749,7 +815,7 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     plot_data <- data.frame()
 
     for (p in 1:length(comparison_pairs)) {
-      if (is.null(all_results[[p]])) next
+      if (is.null(all_df_combined[[p]])) next
 
       pair <- comparison_pairs[[p]]
 
@@ -762,43 +828,63 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
       cond_name1 <- condition_names[comparison[cond_idx1]]
       cond_name2 <- condition_names[comparison[cond_idx2]]
 
-      # For each significant pathway
-      for (path in all_paths) {
-        # Find the original contribution values from each condition
-        cond1_contributions <- all_results[[p]][all_results[[p]]$name == path, cond_name1]
-        cond2_contributions <- all_results[[p]][all_results[[p]]$name == path, cond_name2]
+      # Get the contribution data for this comparison pair
+      df_comb <- all_df_combined[[p]]
 
-        if (length(cond1_contributions) > 0 && length(cond2_contributions) > 0) {
-          # Calculate proportions for stacked bar representation
-          total <- cond1_contributions + cond2_contributions
-          cond1_prop <- cond1_contributions / total
-          cond2_prop <- cond2_contributions / total
+      # Filter to include only the pathways we want to show
+      # When show.all = FALSE, only include pathways significant in THIS comparison
+      if (show.all) {
+        # Show all pathways
+        df_comb_filtered <- df_comb[df_comb$name %in% all_paths, ]
+        paths_to_show <- all_paths
+      } else {
+        # Only show pathways significant in THIS specific comparison
+        paths_to_show <- all_significant_paths_full[[p]]
+        df_comb_filtered <- df_comb[df_comb$name %in% paths_to_show, ]
+      }
 
-          # Get significance
+      if (nrow(df_comb_filtered) == 0) next
+
+      # Add comparison label and significance information
+      for (path in paths_to_show) {
+        path_data <- df_comb_filtered[df_comb_filtered$name == path, ]
+
+        if (nrow(path_data) == 0) next
+
+        # Get p-value for this pathway from the CURRENT comparison
+        p_val <- NA
+        is_in_results <- FALSE
+        if (!is.null(all_results[[p]]) && path %in% all_results[[p]]$name) {
           p_val <- all_results[[p]]$padj[all_results[[p]]$name == path]
+          is_in_results <- TRUE
+        }
 
-          # Add both conditions to plot data
-          plot_data <- rbind(plot_data,
-                             data.frame(
-                               pathway = path,
-                               condition = cond_name1,
-                               group = cond_name1,
-                               contribution = cond1_contributions,
-                               proportion = cond1_prop,
-                               significant = p_val < pThresh,
-                               comparison = paste(cond_name2, "vs", cond_name1),
-                               stringsAsFactors = FALSE
-                             ),
-                             data.frame(
-                               pathway = path,
-                               condition = cond_name2,
-                               group = cond_name2,
-                               contribution = cond2_contributions,
-                               proportion = cond2_prop,
-                               significant = p_val < pThresh,
-                               comparison = paste(cond_name2, "vs", cond_name1),
-                               stringsAsFactors = FALSE
-                             ))
+        # Add significance flag and rename columns for consistency
+        # A pathway is significant in this comparison ONLY if:
+        # 1. It exists in all_results for this comparison, AND
+        # 2. Its adjusted p-value is below the threshold
+        path_data$significant <- is_in_results && !is.na(p_val) && p_val < pThresh
+        path_data$comparison <- paste(cond_name2, "vs", cond_name1)
+        path_data$condition <- path_data$group
+        path_data$pathway <- path_data$name  # Rename for consistency
+
+        # Calculate proportions
+        total_contrib <- sum(path_data$contribution)
+        if (total_contrib > 0) {
+          path_data$proportion <- path_data$contribution / total_contrib
+        } else {
+          path_data$proportion <- 0.5  # Equal if both are zero
+        }
+
+        # Ensure pathway column is character, not factor
+        path_data$pathway <- as.character(path_data$pathway)
+        path_data$comparison <- as.character(path_data$comparison)
+
+        # Use rbind.fill to handle potentially missing columns
+        if (nrow(plot_data) == 0) {
+          plot_data <- path_data
+        } else {
+          plot_data <- plyr::rbind.fill(plot_data, path_data)
         }
       }
     }
@@ -806,6 +892,38 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     if (nrow(plot_data) == 0) {
       return(NULL)
     }
+
+    # Ensure all required columns exist and have consistent types
+    if (!"pathway" %in% colnames(plot_data)) {
+      stop("Internal error: pathway column missing from plot_data")
+    }
+    if (!"proportion" %in% colnames(plot_data)) {
+      stop("Internal error: proportion column missing from plot_data")
+    }
+
+    # Remove any rows with NA pathway or proportion
+    plot_data <- plot_data[!is.na(plot_data$pathway) & !is.na(plot_data$proportion), ]
+
+    if (nrow(plot_data) == 0) {
+      return(NULL)
+    }
+
+    # Debug: check data structure
+    if (length(unique(sapply(plot_data, length))) > 1) {
+      # Columns have different lengths - this is the problem!
+      col_lengths <- sapply(plot_data, length)
+      bad_cols <- names(col_lengths[col_lengths != nrow(plot_data)])
+      warning(paste("Columns with inconsistent length:", paste(bad_cols, collapse=", ")))
+      # Fix by removing problematic columns or padding
+      for (col in bad_cols) {
+        if (length(plot_data[[col]]) < nrow(plot_data)) {
+          plot_data[[col]] <- rep(plot_data[[col]][1], nrow(plot_data))
+        }
+      }
+    }
+
+    # Convert to data.frame if needed (plyr::rbind.fill returns a data.frame)
+    plot_data <- as.data.frame(plot_data, stringsAsFactors = FALSE)
 
     # Order pathways by the magnitude of change
     # Calculate average difference from 0.5 (equal proportions)
@@ -834,9 +952,25 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
       "Pathway Activity: Custom Comparisons"
     }
 
+    # Add alpha channel to show non-significant pathways with transparency
+    if (show.all) {
+      # Calculate significance per pathway-comparison combination
+      plot_data$is_sig_in_comparison <- FALSE
+      for (i in 1:nrow(plot_data)) {
+        # Check if this pathway is significant in this specific comparison
+        same_pathway_comp <- plot_data$pathway == plot_data$pathway[i] &
+                            plot_data$comparison == plot_data$comparison[i]
+        plot_data$is_sig_in_comparison[i] <- any(plot_data$significant[same_pathway_comp], na.rm = TRUE)
+      }
+      plot_data$bar_alpha <- ifelse(plot_data$is_sig_in_comparison, 1.0, 0.3)
+    } else {
+      plot_data$bar_alpha <- 1.0
+    }
+
     barplot <- ggplot2::ggplot(plot_data,
-                               ggplot2::aes(x = pathway, y = proportion, fill = group)) +
+                               ggplot2::aes(x = pathway, y = proportion, fill = group, alpha = bar_alpha)) +
       ggplot2::geom_bar(stat = "identity") +
+      ggplot2::scale_alpha_identity() +
       ggplot2::facet_grid(. ~ comparison) +
       ggplot2::coord_flip() +
       ggplot2::scale_fill_manual(values = color.use) +
@@ -850,9 +984,114 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
       ) +
       ggplot2::labs(
         title = barplot_title,
+        subtitle = if (show.all) "Faded bars: non-significant in that comparison. Stars: *p<0.05, **p<0.01, ***p<0.001" else NULL,
         x = "",
         y = "Relative Contribution"
       )
+
+    # Add significance stars if showing all pathways
+    if (show.all) {
+      # Create significance labels for each pathway-comparison combination
+      sig_labels_data <- data.frame()
+
+      for (path in levels(plot_data$pathway)) {
+        for (comp in unique(plot_data$comparison)) {
+          # Get significance for this pathway in this comparison
+          sig_rows <- plot_data[plot_data$pathway == path &
+                                plot_data$comparison == comp, ]
+
+          if (nrow(sig_rows) > 0) {
+            is_sig <- any(sig_rows$significant)
+
+            # Get the adjusted p-value from all_results
+            # Need to find the correct comparison pair that matches this comparison string
+            # Extract condition names from comparison string
+            comp_parts <- strsplit(as.character(comp), " vs ")[[1]]
+            cond_name2 <- comp_parts[1]
+            cond_name1 <- comp_parts[2]
+
+            # Find the comparison pair index that matches these conditions
+            p_val <- NA
+            matched_p_idx <- NA
+            for (p_idx in 1:length(comparison_pairs)) {
+              pair <- comparison_pairs[[p_idx]]
+              pair_cond1 <- condition_names[comparison[pair[1]]]
+              pair_cond2 <- condition_names[comparison[pair[2]]]
+
+              # Check if this pair matches the comparison we're looking for
+              if (pair_cond1 == cond_name1 && pair_cond2 == cond_name2) {
+                # Found the right comparison pair
+                matched_p_idx <- p_idx
+
+                # IMPORTANT: Check if pathway is in all_significant_paths_full for this comparison
+                # This ensures we only show stars for pathways that passed BOTH p-value AND fold-change thresholds
+                is_in_significant_list <- path %in% all_significant_paths_full[[p_idx]]
+
+                res <- all_results[[p_idx]]
+                if (!is.null(res) && path %in% res$name && is_in_significant_list) {
+                  # Only extract p-value if pathway is truly significant (in the significant list)
+                  p_val <- res$padj[res$name == path]
+
+                  # Debug output for specific pathways
+                  if (getOption("rankDiffM.debug", FALSE) && path == "PTN") {
+                    cat(sprintf("  STAR DEBUG [%s in %s]: p_idx=%d, in_sig_list=TRUE, p_val=%.4f, will add star=%s\n",
+                               path, comp, p_idx, p_val, ifelse(!is.na(p_val) && p_val < pThresh, "YES", "NO")))
+                  }
+                } else {
+                  # Debug: pathway not in significant list or not in results
+                  if (getOption("rankDiffM.debug", FALSE) && path == "PTN") {
+                    in_res <- !is.null(res) && path %in% res$name
+                    cat(sprintf("  STAR DEBUG [%s in %s]: p_idx=%d, in_all_results=%s, in_sig_list=%s, no star\n",
+                               path, comp, p_idx, in_res, is_in_significant_list))
+                  }
+                }
+                break
+              }
+            }
+
+            # Convert p-value to stars
+            sig_label <- ""
+            if (!is.na(p_val)) {
+              if (p_val < 0.001) {
+                sig_label <- "***"
+              } else if (p_val < 0.01) {
+                sig_label <- "**"
+              } else if (p_val < 0.05) {
+                sig_label <- "*"
+              }
+            }
+
+            if (sig_label != "") {
+              sig_labels_data <- rbind(sig_labels_data,
+                                      data.frame(
+                                        pathway = path,
+                                        comparison = comp,
+                                        proportion = 1.02,  # Position slightly above the bar
+                                        label = sig_label,
+                                        stringsAsFactors = FALSE
+                                      ))
+            }
+          }
+        }
+      }
+
+      # Add significance stars to the plot
+      if (nrow(sig_labels_data) > 0) {
+        sig_labels_data$pathway <- factor(sig_labels_data$pathway, levels = levels(plot_data$pathway))
+
+        # Position stars at the end of the stacked bar (y=1.0) plus a small offset
+        barplot <- barplot +
+          ggplot2::geom_text(
+            data = sig_labels_data,
+            ggplot2::aes(x = pathway, y = 1.02, label = label),
+            inherit.aes = FALSE,
+            hjust = 0,
+            vjust = 0.5,
+            size = text_size / 3,
+            fontface = "bold"
+          )
+      }
+    }
 
     # Create heatmap
     # Create a heatmap showing pathway changes across conditions
@@ -959,6 +1198,73 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
           x = "",
           y = ""
         )
+
+      # Add significance stars to heatmap if showing all pathways
+      if (show.all) {
+        # Get p-values for each pathway-condition combination and create labels
+        heatmap_data$sig_label <- ""
+
+        for (i in 1:nrow(heatmap_data)) {
+          path <- as.character(heatmap_data$pathway[i])
+          cond <- as.character(heatmap_data$condition[i])
+
+          # Find the corresponding p-value from the correct comparison
+          # The heatmap shows differences, so we need to find which comparison this belongs to
+          p_val <- NA
+          for (p_idx in 1:length(comparison_pairs)) {
+            pair <- comparison_pairs[[p_idx]]
+            pair_cond1 <- condition_names[comparison[pair[1]]]
+            pair_cond2 <- condition_names[comparison[pair[2]]]
+
+            # For all_vs_ref, condition is the non-reference condition
+            # For custom_pairs, condition is the comparison label
+            if (comparison_method == "all_vs_ref") {
+              # Check if this is the right comparison (non-ref condition matches)
+              if (cond == pair_cond2 || cond == pair_cond1) {
+                # IMPORTANT: Check if pathway is in all_significant_paths_full for this comparison
+                is_in_significant_list <- path %in% all_significant_paths_full[[p_idx]]
+                res <- all_results[[p_idx]]
+                if (!is.null(res) && path %in% res$name && is_in_significant_list) {
+                  p_val <- res$padj[res$name == path]
+                  break
+                }
+              }
+            } else {
+              # For custom pairs, use the comparison string match
+              comp_str <- paste(pair_cond2, "vs", pair_cond1)
+              if (cond == comp_str) {
+                # IMPORTANT: Check if pathway is in all_significant_paths_full for this comparison
+                is_in_significant_list <- path %in% all_significant_paths_full[[p_idx]]
+                res <- all_results[[p_idx]]
+                if (!is.null(res) && path %in% res$name && is_in_significant_list) {
+                  p_val <- res$padj[res$name == path]
+                  break
+                }
+              }
+            }
+          }
+
+          # Convert p-value to stars
+          if (!is.na(p_val)) {
+            if (p_val < 0.001) {
+              heatmap_data$sig_label[i] <- "***"
+            } else if (p_val < 0.01) {
+              heatmap_data$sig_label[i] <- "**"
+            } else if (p_val < 0.05) {
+              heatmap_data$sig_label[i] <- "*"
+            }
+          }
+        }
+
+        # Add text labels to heatmap
+        heatmap <- heatmap +
+          ggplot2::geom_text(
+            ggplot2::aes(label = sig_label),
+            color = "black",
+            size = text_size / 3.5,
+            fontface = "bold"
+          )
+      }
     } else {
       heatmap <- NULL
     }
@@ -1124,6 +1430,7 @@ if (nrow(slope_data) > 0) {
       combined_comparison_plots <- create_combined_comparison_plot(
         all_significant_paths_full = all_significant_paths_full,
         all_results = all_results,
+        all_df_combined = all_df_combined,
         comparison_pairs = comparison_pairs,
         condition_names = condition_names,
         comparison = comparison,
@@ -1135,7 +1442,8 @@ if (nrow(slope_data) > 0) {
         border_color = border_color,
         pThresh = pThresh,
         comparison_method = comparison_method,
-        color.pathway = color.pathway
+        color.pathway = color.pathway,
+        show.all = show.all
       )
     }
   }

@@ -42,7 +42,9 @@ rankDiffM(
   heatmap_colors = c("deepskyblue", "white", "darkorange"),
   text_size = 10,
   label_angle = 45,
-  border_color = "grey60"
+  border_color = "grey60",
+  cell.type.strategy = c("shared", "union"),
+  show.all = FALSE
 )
 }
 \arguments{
@@ -123,6 +125,15 @@ or "sequential" (each group vs next) or "custom_pairs" (specified pairs)}
 \item{label_angle}{Angle for x-axis labels}
 
 \item{border_color}{Border color for tiles in heatmap}
+
+\item{cell.type.strategy}{Character, strategy for aligning cell types across objects.
+"shared" (default) uses only cell types common to all objects (intersection).
+"union" uses all cell types from all objects (fills missing with 0).}
+
+\item{show.all}{Logical, whether to show all pathways (TRUE) or only significant pathways
+(FALSE, default) in the comparison_barplot and comparison_heatmap. When TRUE,
+non-significant pathways are shown with faded colors and significance stars
+(*p<0.05, **p<0.01, ***p<0.001) indicate which pathways are significant in each comparison.}
 }
 \value{
 A list containing:
@@ -147,7 +158,8 @@ across multiple groups and visualizes the significant ones.
 results <- rankDiffM(
   object.list = cellchat.list,
   comparison_method = "all_vs_ref",
-  reference = "WT"
+  reference = "WT",
+  cell.type.strategy = "shared"
 )
 
 # Using log2 fold change and custom visualization options
@@ -157,7 +169,8 @@ results <- rankDiffM(
   reference = "WT",
   use_log2fc = TRUE,
   comparison_plot_type = "heatmap",
-  heatmap_colors = c("blue", "white", "red")
+  heatmap_colors = c("blue", "white", "red"),
+  cell.type.strategy = "union"
 )
 
 # Using sequential comparison with custom pathway ordering
@@ -165,7 +178,17 @@ results <- rankDiffM(
   object.list = cellchat.list,
   comparison_method = "sequential",
   order_by = "pathway_name",
-  show_comparison_slope = TRUE
+  show_comparison_slope = TRUE,
+  cell.type.strategy = "shared"
+)
+
+# Show all pathways (not just significant) in comparison plots
+results <- rankDiffM(
+  object.list = cellchat.list,
+  comparison_method = "all_vs_ref",
+  reference = "WT",
+  show_comparison_barplot = TRUE,
+  show.all = TRUE
 )
 
 }

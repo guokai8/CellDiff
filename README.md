@@ -16,14 +16,18 @@ CellDiff is an R package that extends the functionality of [CellChat](https://gi
 
 * **Multi-group comparison**: Compare cell-cell communication across multiple conditions simultaneously
 * **Flexible comparison methods**: Support for all-vs-all, all-vs-reference, and custom pairwise comparisons
+* **Cell type alignment**: Handle missing cell types with "shared" or "union" strategies
 * **Differential pathway analysis**: Identify signaling pathways that are significantly altered between conditions
+* **Advanced visualization options**:
+  - Show all pathways with significance indicators (stars, fading)
+  - Comparison-specific pathway display
+  - Named list outputs for easier data access
 * **Rich visualizations**: Venn diagrams, UpSet plots, heatmaps, network graphs, and timeline plots
 * **Ligand-receptor analysis**: Compare L-R pair contributions with customizable plots and heatmaps
 * **Pattern discovery**: Identify common and unique signaling patterns across conditions
 * **Sender-receiver analysis**: Analyze how cells change their roles as signaling senders or receivers
 * **Integrated visualizations**: ComplexHeatmap integration with consistent color schemes
 * **No external dependencies on dplyr/tidyr**: Pure base R + specialized visualization packages
-* **alignCellTypes** Align cell types across CellChat objects with flexible strategy
 ## Installation
 
 ```r
@@ -50,39 +54,58 @@ CellDiff requires the following packages:
 - VennDetail (optional, for Venn diagrams)
 - grid
 
-## What's New in Version 0.1.3
+## What's New in Version 0.1.4
 
 ### Major Improvements
 
-1. **Custom Pairwise Comparisons**
+1. **Enhanced Cell Type Alignment**
+   - **NEW**: `cell.type.strategy` parameter for handling missing cell types across conditions
+   - **"shared"** strategy: Uses only cell types present in all conditions (safer, more conservative)
+   - **"union"** strategy: Uses all cell types from any condition, filling missing data with zeros
+   - Automatically reports alignment statistics and warns about missing cell types
+   - Available in: `rankDiffM`, `heatDiffM`, `scatterDiff2DM`, and `ContriDiffM`
+
+2. **Advanced Comparison Visualization (rankDiffM)**
+   - **NEW**: `show.all` parameter for comprehensive pathway visualization
+   - **show.all = FALSE** (default): Shows only pathways significant in each specific comparison
+   - **show.all = TRUE**: Shows all pathways with visual indicators:
+     - Faded bars (alpha=0.3) for non-significant pathway-comparison combinations
+     - Significance stars (*p<0.05, **p<0.01, ***p<0.001)
+     - Informative subtitle explaining the visualization
+   - **FIXED**: Comparison-specific pathway display - pathways now only appear in panels where they're actually significant
+   - **FIXED**: Star assignment bug - stars now only appear for pathways passing both p-value AND fold-change thresholds
+
+3. **Named List Output**
+   - **NEW**: All output lists now have meaningful comparison names
+   - Access results by comparison name instead of numeric index
+   - Example: `results$all_significant_paths_full[["KO vs WT"]]` instead of `[[1]]`
+   - Applies to: `all_significant_paths_full`, `all_significant_paths`, `data`, `plots`, `heatmaps`
+
+4. **Custom Pairwise Comparisons**
    - `rankDiffM`, `heatDiffM`, `scatterDiff2DM`, and `ContriDiffM` now support `comparison_method = "custom_pairs"`
    - Specify exactly which condition pairs to compare: `custom_comparisons = list(c("WT", "KO"), c("KO", "DKO"))`
    - Generates focused visualizations for your specific comparisons of interest
 
-2. **Enhanced findCommonUniquePatterns**
+5. **Enhanced findCommonUniquePatterns**
    - **NEW**: Venn diagram visualization using VennDetail (up to 7 conditions)
    - **NEW**: UpSet plot for complex multi-way intersections
    - **NEW**: Barplot showing total, unique, and common pattern counts
    - **NEW**: Network visualization of top signaling interactions
    - Identifies patterns that are shared or unique across conditions
 
-3. **Improved compareCellChatsM**
+6. **Improved compareCellChatsM**
    - **FIXED**: Replaced pheatmap with ComplexHeatmap for consistency
    - **FIXED**: Removed dplyr dependency - uses pure base R
    - **NEW**: Enhanced timeline plots with optional labeling
    - **NEW**: Pathway contribution timeline with labeling support
    - Better color consistency across all visualizations
 
-4. **rankDiffM Enhancements**
-   - **NEW**: `comparison_barplot` and `comparison_heatmap` now work with `custom_pairs`
-   - Creates faceted visualizations showing each custom comparison
-   - Slope plot remains exclusive to `all_vs_ref` (by design)
-
-5. **Bug Fixes**
+7. **Bug Fixes**
    - Fixed RStudio display issues in `heatDiffM` (changed `invisible()` to `return()`)
    - Fixed custom_pairs index conversion in all multi-condition functions
    - Fixed missing `scPalette()` reference (replaced with `assignColors()`)
    - Fixed width/height swap in big_heatmap mode
+   - Fixed pathway display in comparison plots to be comparison-specific
 
 ### Migration Notes
 
@@ -143,10 +166,12 @@ pathway_results <- rankDiffM(
   object.list = cellchatlist,
   comparison_method = "all_vs_ref",  # Compare all conditions to the reference
   reference = "WT",                  # Set WT as reference
+  cell.type.strategy = "union",      # Use all cell types (fills missing with 0)
   use_log2fc = TRUE,                 # Use log2 fold change for better visualization
   show_comparison_barplot = TRUE,    # Show faceted barplot
   show_comparison_heatmap = TRUE,    # Show heatmap
-  show_comparison_slope = TRUE       # Show slope plot
+  show_comparison_slope = TRUE,      # Show slope plot
+  show.all = FALSE                   # Show only significant pathways per comparison (default)
 )
 
 # View different visualization types
@@ -156,6 +181,26 @@ pathway_results$comparison_slope_plot
 
 # Get the top differential pathways
 top_pathways <- pathway_results$top_paths
+
+# Access results by comparison name (NEW!)
+pathway_results$all_significant_paths_full[["KO vs WT"]]
+pathway_results$all_significant_paths_full[["DKO vs WT"]]
+
+# Show all pathways with visual indicators
+pathway_results_all <- rankDiffM(
+  object.list = cellchatlist,
+  comparison_method = "all_vs_ref",
+  reference = "WT",
+  cell.type.strategy = "shared",     # Use only common cell types (safer)
+  show_comparison_barplot = TRUE,
+  show.all = TRUE                    # Show all pathways with fading and stars
+)
+
+# With show.all = TRUE:
+# - All pathways appear in all comparison panels
+# - Non-significant pathways are faded (alpha = 0.3)
+# - Significant pathways have stars (*p<0.05, **p<0.01, ***p<0.001)
+pathway_results_all$comparison_barplot
 
 # Use custom pairs for specific comparisons
 pathway_custom <- rankDiffM(
@@ -459,6 +504,53 @@ print(quadrant_changes)
 ```
 
 ## Frequently Asked Questions
+
+### How do I handle missing cell types across conditions?
+Use the `cell.type.strategy` parameter:
+```r
+# Use only cell types present in ALL conditions (safer, recommended)
+rankDiffM(object.list = cellchatlist, cell.type.strategy = "shared")
+
+# Use ALL cell types from any condition (fills missing with 0)
+rankDiffM(object.list = cellchatlist, cell.type.strategy = "union")
+```
+The function will report which cell types are missing and how many:
+```
+Using union strategy: 10 cell types aligned
+  - 8 cell types present in all objects
+  - 2 cell types present in some objects (will use 0 for missing)
+```
+
+### How do I access results by comparison name instead of index?
+All output lists now have meaningful names:
+```r
+results <- rankDiffM(object.list = cellchatlist, reference = "WT")
+
+# Old way (still works)
+results$all_significant_paths_full[[1]]
+
+# New way (clearer!)
+results$all_significant_paths_full[["KO vs WT"]]
+results$all_significant_paths_full[["DKO vs WT"]]
+
+# See all comparison names
+names(results$all_significant_paths_full)
+```
+
+### How do I show all pathways with significance indicators?
+Use the `show.all` parameter in `rankDiffM`:
+```r
+# Default: Only show pathways significant in each specific comparison
+results <- rankDiffM(object.list = cellchatlist, show.all = FALSE)
+
+# Show all pathways with visual indicators
+results <- rankDiffM(object.list = cellchatlist, show.all = TRUE)
+```
+With `show.all = TRUE`:
+- All pathways appear in all comparison panels
+- Non-significant pathways are faded (alpha = 0.3)
+- Significant pathways are opaque with stars (*p<0.05, **p<0.01, ***p<0.001)
+- A subtitle explains the visualization
 
 ### How do I select a reference condition?
 For multiple group comparisons, you can specify a reference using either the index or name:
