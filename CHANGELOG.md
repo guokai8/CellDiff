@@ -38,6 +38,23 @@ All notable changes to the CellDiff package will be documented in this file.
   - Shows comparison-pair matching
   - Does not affect other functions (isolated to CellDiff package)
 
+#### Wrapper Functions
+- **NEW** `runCellChat`: Create CellChat objects from Seurat
+  - Takes Seurat object directly as input
+  - Automatically splits by condition and creates CellChat objects
+  - Runs complete CellChat workflow (preprocessing, inference, aggregation)
+  - Returns named list of ready-to-use CellChat objects
+  - Simplifies CellChat setup for multi-condition experiments
+  - Users can then apply any CellDiff functions for differential analysis
+
+- **NEW** `compareCell`: Comprehensive differential analysis wrapper
+  - One-step workflow running `rankDiffM`, `heatDiffM`, `scatterDiff2DM`, and `networkLRDiff`
+  - Automatic cell type alignment
+  - Organized results with meaningful comparison names
+  - Integrated summary statistics
+  - Informative progress messages
+  - Simplified API for common analysis workflows
+
 ### Fixed
 
 #### Comparison-Specific Pathway Display
@@ -68,8 +85,16 @@ All notable changes to the CellDiff package will be documented in this file.
   - Line 993: Fixed star assignment for barplots (check `all_significant_paths_full`)
   - Line 1190: Fixed star assignment for heatmaps (check `all_significant_paths_full`)
   - Lines 758-770: Added named list creation
-- `README.md`: Updated with new features and examples
+- `R/runCellChat.R`: **NEW** wrapper function to create CellChat objects from Seurat
+  - Lines 59-197: Main wrapper function implementation
+  - Returns named list of CellChat objects
+- `R/compareCell.R`: **NEW** wrapper function for comprehensive differential analysis
+  - Lines 71-287: Main wrapper function implementation
+  - Lines 294-321: Print method for CellDiffAnalysis objects
+- `README.md`: Updated with new features, wrapper function examples
 - `man/rankDiffM.Rd`: Auto-generated documentation updates
+- `man/runCellChat.Rd`: **NEW** auto-generated documentation for Seurat wrapper
+- `man/compareCell.Rd`: **NEW** auto-generated documentation for differential analysis wrapper
 
 ### Migration Guide
 
@@ -99,6 +124,29 @@ All notable changes to the CellDiff package will be documented in this file.
    ```r
    # Show all pathways with significance indicators
    rankDiffM(object.list = cellchatlist, show.all = TRUE)
+   ```
+
+4. **Use wrapper functions for streamlined workflow**
+   ```r
+   # Create CellChat objects from Seurat
+   cellchat_list <- runCellChat(
+     seurat_object = pbmc,
+     group.by = "condition",
+     species = "human"
+   )
+
+   # Then run differential analysis
+   results <- compareCell(
+     object.list = cellchat_list,
+     reference = "WT",
+     cell.type.strategy = "union",
+     show.all = TRUE,
+     show_plots = c("barplot", "heatmap", "scatter")
+   )
+
+   # Or use individual CellDiff functions
+   rankDiffM(object.list = cellchat_list, reference = "WT")
+   heatDiffM(object.list = cellchat_list, reference = "WT")
    ```
 
 #### Behavior Changes to Be Aware Of

@@ -1,0 +1,575 @@
+---
+title: "Getting Started with CellDiff: From Seurat to Differential Analysis"
+author: "Kai Guo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{Getting Started with CellDiff: From Seurat to Differential Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 8,
+  fig.height = 6,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+## Introduction
+
+This tutorial provides a complete beginner-friendly workflow for analyzing cell-cell communication differences across multiple conditions using CellDiff. We'll start from a Seurat object and show you three flexible workflows:
+
+1. **Automatic workflow**: One-step analysis with `runCellChat()`
+2. **Manual workflow**: Step-by-step control over each analysis
+3. **Advanced workflow**: Starting from existing CellChat objects
+
+By the end of this tutorial, you'll understand:
+
+- How to create CellChat objects from Seurat data
+- How to run comprehensive differential analysis
+- How to interpret and visualize results
+- How to customize analyses for your specific needs
+
+## Prerequisites
+
+### Required Packages
+
+```{r setup}
+library(CellDiff)
+library(CellChat)
+library(Seurat)
+library(ggplot2)
+```
+
+### Tutorial Dataset
+
+We'll use the `pbmc_tutorial` dataset included in CellDiff. This is a synthetic dataset with:
+
+- **1,500 cells** (500 per condition)
+- **3 conditions**: WT (Wild Type), KO (Knockout), DKO (Double Knockout)
+- **5 cell types**: T_cells, B_cells, Monocytes, NK_cells, Dendritic
+
+```{r load-data}
+# Load the tutorial dataset
+data(pbmc_tutorial)
+
+# Examine the dataset
+pbmc_tutorial
+```
+
+### Inspect the Data Structure
+
+```{r inspect-data}
+# Check sample distribution
+table(pbmc_tutorial$condition)
+
+# Check cell type distribution
+table(pbmc_tutorial$cell_type)
+
+# Check both together
+table(pbmc_tutorial$condition, pbmc_tutorial$cell_type)
+```
+
+## Workflow 1: Automatic Analysis (Recommended for Beginners)
+
+The simplest way to analyze your data is using `runCellChat()` with `run.analysis = TRUE`. This creates CellChat objects AND runs differential analysis in one step.
+
+### Run Complete Analysis
+
+```{r workflow1-auto, eval=FALSE}
+# One-step analysis: Create CellChat objects AND run differential analysis
+results <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",              # Column in metadata for conditions
+  species = "human",                   # "human" or "mouse"
+  cell.type.column = "cell_type",      # Column in metadata for cell types
+  run.analysis = TRUE,                 # Run differential analysis automatically
+  reference = "WT",                    # Reference condition
+  show_plots = c("barplot", "heatmap", "scatter")  # Choose which analyses to run
+)
+```
+
+### Understanding the Parameters
+
+Let's break down what each parameter does:
+
+- **seurat_object**: Your Seurat object with normalized data
+- **group.by**: Metadata column defining conditions to compare (e.g., "condition", "treatment", "genotype")
+- **species**: Choose "human" or "mouse" (determines which CellChatDB to use)
+- **cell.type.column**: Metadata column with cell type annotations
+- **run.analysis**: Set to `TRUE` to automatically run differential analysis
+- **reference**: Which condition to use as baseline for comparisons
+- **show_plots**: Which analyses to run (more on this below)
+
+### Available Analyses in `show_plots`
+
+You can customize which analyses to run by specifying combinations of:
+
+```{r show-plots-options, eval=FALSE}
+# Option 1: Only pathway ranking (fastest)
+show_plots = c("barplot")
+
+# Option 2: Pathway ranking + heatmap
+show_plots = c("barplot", "heatmap")
+
+# Option 3: Comprehensive analysis
+show_plots = c("barplot", "heatmap", "scatter")
+
+# Option 4: All available analyses
+show_plots = c("barplot", "heatmap", "slope", "scatter", "network")
+```
+
+**Available plot types:**
+
+- **"barplot"**: Pathway ranking comparison (via `rankDiffM()`)
+- **"heatmap"**: Differential signaling heatmap (via `heatDiffM()`)
+- **"slope"**: Pathway ranking slope plot (via `rankDiffM()`)
+- **"scatter"**: Sender-receiver scatter plot (via `scatterDiff2DM()`)
+- **"network"**: Network visualization (via `networkLRDiff()`)
+
+### Access and Visualize Results
+
+```{r workflow1-results, eval=FALSE}
+# The results object contains everything:
+names(results)
+# [1] "cellchat_objects"  "pathway_analysis"  "heatmap"  "scatter"  "summary"
+
+# View pathway ranking barplot
+results$pathway_analysis$comparison_barplot
+
+# View heatmap (if "heatmap" was in show_plots)
+results$heatmap
+
+# View scatter plot (if "scatter" was in show_plots)
+results$scatter
+
+# View summary statistics
+results$summary
+
+# Access individual CellChat objects if needed
+results$cellchat_objects$WT
+results$cellchat_objects$KO
+results$cellchat_objects$DKO
+```
+
+### Interpretation Guide
+
+**Pathway Analysis (Barplot):**
+
+- Shows pathways ranked by differential activity across conditions
+- Stars indicate significance level (*, **, ***)
+- Longer bars = greater difference from reference condition
+
+**Heatmap:**
+
+- Rows: Cell types
+- Columns: Signaling pathways
+- Colors: Change relative to reference (red = increased, blue = decreased)
+- Useful for identifying cell type-specific changes
+
+**Scatter Plot:**
+
+- X-axis: Outgoing signaling strength (sender)
+- Y-axis: Incoming signaling strength (receiver)
+- Each point represents a cell type
+- Movement from reference shows change in communication role
+
+## Workflow 2: Manual Control (Step-by-Step)
+
+For more control, you can separate CellChat object creation from differential analysis.
+
+### Step 1: Create CellChat Objects
+
+```{r workflow2-create, eval=FALSE}
+# Create CellChat objects only (run.analysis = FALSE is the default)
+cellchat_list <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human",
+  cell.type.column = "cell_type"
+)
+
+# This returns a named list of CellChat objects
+names(cellchat_list)
+# [1] "WT"  "KO"  "DKO"
+
+# Examine one CellChat object
+cellchat_list$WT
+```
+
+### Step 2: Choose Your Analyses
+
+Now you can run specific analyses individually:
+
+```{r workflow2-individual, eval=FALSE}
+# Option A: Run pathway ranking only
+pathway_results <- rankDiffM(
+  object.list = cellchat_list,
+  reference = "WT",
+  use_log2fc = TRUE,
+  top.n = 15
+)
+
+# Option B: Run heatmap only
+heatmap_results <- heatDiffM(
+  object.list = cellchat_list,
+  reference = "WT",
+  measure = "sender",
+  use_log2fc = TRUE
+)
+
+# Option C: Run scatter plot only
+scatter_results <- scatterDiff2DM(
+  object.list = cellchat_list,
+  reference = "WT",
+  plot.type = "facet"
+)
+```
+
+### Step 3: Or Use the Comprehensive Wrapper
+
+```{r workflow2-wrapper, eval=FALSE}
+# Run comprehensive analysis with compareCell()
+results <- compareCell(
+  object.list = cellchat_list,
+  reference = "WT",
+  show_plots = c("barplot", "heatmap", "scatter")
+)
+
+# Access results the same way as Workflow 1
+results$pathway_analysis$comparison_barplot
+results$heatmap
+results$scatter
+```
+
+### When to Use Manual Control
+
+Choose this workflow when you:
+
+- Want to explore data before running full analysis
+- Need to customize parameters for individual analyses
+- Want to save CellChat objects for later use
+- Need to run analyses selectively based on initial results
+
+## Workflow 3: Starting from Existing CellChat Objects
+
+If you already have CellChat objects (created previously or by collaborators), you can jump straight to differential analysis.
+
+### Load Existing CellChat Objects
+
+```{r workflow3-load, eval=FALSE}
+# Example using the built-in example dataset
+data(cellchatlist)
+
+# Verify the structure
+names(cellchatlist)
+# [1] "WT"  "KO"  "DKO"
+
+# Run comprehensive analysis
+results <- compareCell(
+  object.list = cellchatlist,
+  reference = "WT",
+  show_plots = c("barplot", "heatmap")
+)
+```
+
+### Run Individual Analyses
+
+```{r workflow3-individual, eval=FALSE}
+# Pathway ranking with all features
+rankDiffM(
+  object.list = cellchatlist,
+  reference = "WT",
+  show.all = TRUE,              # Show all pathways (not just significant)
+  use_log2fc = TRUE,
+  top.n = 20
+)
+
+# Custom heatmap with specific pathways
+heatDiffM(
+  object.list = cellchatlist,
+  reference = "WT",
+  measure = "both",             # Both sender and receiver
+  signaling = c("WNT", "TGFb", "NOTCH"),  # Specific pathways
+  use_log2fc = TRUE
+)
+
+# Ligand-receptor contribution analysis
+ContriDiffM(
+  object.list = cellchatlist,
+  signaling = "WNT",
+  reference = "WT",
+  show.heatmap = TRUE
+)
+```
+
+## Advanced Topics
+
+### Comparing All Conditions Pairwise
+
+Instead of comparing everything to a reference, you can compare all pairs:
+
+```{r advanced-pairwise, eval=FALSE}
+results <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human",
+  run.analysis = TRUE,
+  comparison_method = "all_vs_all",  # Compare all pairs
+  show_plots = c("barplot", "heatmap")
+)
+
+# Results will have comparisons: WT_vs_KO, WT_vs_DKO, KO_vs_DKO
+```
+
+### Custom Comparisons
+
+For specific pairwise comparisons:
+
+```{r advanced-custom, eval=FALSE}
+# Define custom comparison pairs
+custom_pairs <- list(
+  c("WT", "KO"),
+  c("WT", "DKO")
+)
+
+results <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human",
+  run.analysis = TRUE,
+  comparison_method = "custom_pairs",
+  custom_comparisons = custom_pairs,
+  show_plots = c("barplot")
+)
+```
+
+### Cell Type Alignment Strategies
+
+When conditions have different cell types:
+
+```{r advanced-celltype, eval=FALSE}
+# Option 1: Shared cell types only (conservative, default)
+results_shared <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human",
+  run.analysis = TRUE,
+  reference = "WT",
+  cell.type.strategy = "shared"    # Only cell types present in ALL conditions
+)
+
+# Option 2: Union of cell types (inclusive)
+results_union <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human",
+  run.analysis = TRUE,
+  reference = "WT",
+  cell.type.strategy = "union"     # All cell types (fills missing with zeros)
+)
+```
+
+### Showing All Pathways
+
+By default, only significant pathways are shown. To see all pathways:
+
+```{r advanced-showall, eval=FALSE}
+results <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human",
+  run.analysis = TRUE,
+  reference = "WT",
+  show.all = TRUE,                  # Show all pathways with visual indicators
+  pThresh = 0.05,                   # Significance threshold
+  show_plots = c("barplot", "heatmap")
+)
+```
+
+### Finding Common and Unique Patterns
+
+Identify pathways unique to specific conditions:
+
+```{r advanced-patterns, eval=FALSE}
+# First create CellChat objects
+cellchat_list <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human"
+)
+
+# Find common and unique patterns
+patterns <- findCommonUniquePatterns(
+  object.list = cellchat_list,
+  min_overlap = 2,                  # Pathways in at least 2 conditions are "common"
+  return_networks = TRUE
+)
+
+# View common patterns
+head(patterns$common_patterns)
+
+# View unique patterns per condition
+head(patterns$unique_patterns)
+```
+
+## Real-World Example Workflow
+
+Here's a complete workflow for analyzing your own data:
+
+```{r real-world, eval=FALSE}
+# Assuming you have a Seurat object called 'seurat_obj'
+# with metadata columns 'treatment' and 'celltype'
+
+# Step 1: Quick exploratory analysis
+quick_results <- runCellChat(
+  seurat_object = seurat_obj,
+  group.by = "treatment",
+  species = "human",
+  cell.type.column = "celltype",
+  run.analysis = TRUE,
+  reference = "Control",
+  show_plots = c("barplot")        # Start with just pathway ranking
+)
+
+# Step 2: Examine top differential pathways
+top_pathways <- quick_results$pathway_analysis$top_paths
+print(top_pathways)
+
+# Step 3: Deep dive with more visualizations
+detailed_results <- compareCell(
+  object.list = quick_results$cellchat_objects,
+  reference = "Control",
+  show_plots = c("barplot", "heatmap", "scatter", "network")
+)
+
+# Step 4: Investigate specific pathways
+# For example, if WNT pathway looks interesting:
+ContriDiffM(
+  object.list = quick_results$cellchat_objects,
+  signaling = "WNT",
+  reference = "Control",
+  show.heatmap = TRUE,
+  top.n = 15
+)
+
+# Step 5: Save results
+saveRDS(detailed_results, "cellchat_analysis_results.rds")
+
+# Save plots
+ggsave("pathway_ranking.pdf",
+       detailed_results$pathway_analysis$comparison_barplot,
+       width = 10, height = 8)
+```
+
+## Troubleshooting
+
+### Issue: "reference must be specified"
+
+```{r trouble-ref, eval=FALSE}
+# Wrong:
+runCellChat(pbmc_tutorial, group.by = "condition", run.analysis = TRUE)
+
+# Correct:
+runCellChat(pbmc_tutorial, group.by = "condition",
+            run.analysis = TRUE, reference = "WT")
+```
+
+### Issue: "Column not found in metadata"
+
+```{r trouble-column, eval=FALSE}
+# Check your metadata column names first:
+colnames(pbmc_tutorial@meta.data)
+
+# Then use the exact name:
+runCellChat(pbmc_tutorial,
+            group.by = "condition",        # Must match exactly
+            cell.type.column = "cell_type") # Must match exactly
+```
+
+### Issue: Not enough cells for analysis
+
+```{r trouble-cells, eval=FALSE}
+# Reduce the minimum cell requirement:
+runCellChat(pbmc_tutorial,
+            group.by = "condition",
+            min.cells = 5)  # Default is 10
+```
+
+### Issue: No significant pathways detected
+
+This is normal with synthetic data or if conditions are very similar:
+
+```{r trouble-pathways, eval=FALSE}
+# Use show.all = TRUE to see all pathways:
+runCellChat(pbmc_tutorial,
+            group.by = "condition",
+            run.analysis = TRUE,
+            reference = "WT",
+            show.all = TRUE)  # Shows all pathways with visual indicators
+```
+
+## Function Reference Quick Guide
+
+### Wrapper Functions (Beginners)
+
+| Function | Purpose |
+|----------|---------|
+| `runCellChat()` | Create CellChat objects from Seurat (+ optional analysis) |
+| `compareCell()` | Comprehensive differential analysis of CellChat objects |
+
+### Multi-Condition Analysis Functions
+
+| Function | Purpose |
+|----------|---------|
+| `rankDiffM()` | Rank differential pathways across conditions |
+| `heatDiffM()` | Heatmap of differential signaling patterns |
+| `scatterDiff2DM()` | Scatter plot of sender-receiver changes |
+| `ContriDiffM()` | Ligand-receptor pair contributions |
+| `findCommonUniquePatterns()` | Identify shared vs unique patterns |
+
+### Utility Functions
+
+| Function | Purpose |
+|----------|---------|
+| `compareCellChatsM()` | Global overview of communication changes |
+| `alignCellTypes()` | Align cell types across conditions |
+| `netDiff()` | Chord diagram for network differences |
+| `networkLRDiff()` | Integrated network visualization |
+
+## Next Steps
+
+After completing this tutorial, you can:
+
+1. **Explore the advanced vignette**: See "Multi-Condition Analysis with CellDiff" for detailed examples of each function
+2. **Analyze your own data**: Apply these workflows to your Seurat objects
+3. **Customize visualizations**: Explore function parameters for publication-quality figures
+4. **Explore CellChat features**: CellDiff builds on CellChat - explore their documentation for additional analyses
+
+## Additional Resources
+
+- **CellDiff GitHub**: https://github.com/guokai8/CellDiff
+- **CellChat Paper**: Jin et al., Nature Communications, 2021
+- **Function documentation**: Use `?runCellChat`, `?compareCell`, etc. in R
+
+## Session Info
+
+```{r session-info}
+sessionInfo()
+```
+
+## Citation
+
+If you use CellDiff in your research, please cite:
+
+- CellDiff package: Guo, K. (2024). CellDiff: Multi-condition differential analysis for CellChat.
+- CellChat: Jin, S., et al. (2021). Inference and analysis of cell-cell communication using CellChat. Nature Communications, 12, 1088.
