@@ -54,9 +54,22 @@ CellDiff requires the following packages:
 - VennDetail (optional, for Venn diagrams)
 - grid
 
-## What's New in Version 0.1.4
+## What's New in Version 0.1.7
 
 ### Major Improvements
+
+**NEW: Comprehensive CellChat Parameter Control**
+   - `runCellChat` now exposes **39 parameters** for complete CellChat customization
+   - **Data Access**: Choose specific assay and slot/layer (Seurat v4/v5 compatible)
+   - **Database**: Subset by interaction type or provide custom databases
+   - **Spatial Data**: Full support for spatial communication parameters
+   - **Advanced Filtering**: Control expression thresholds, cell filtering, and rare interactions
+   - **Error Handling**: Continue processing if some conditions fail (`stop.on.error = FALSE`)
+   - **Flexible Returns**: Get merged objects and pre-aggregation objects
+   - **Verbosity Control**: Suppress CellChat messages while keeping CellDiff progress
+   - See Option 3 below for full parameter details
+
+### Previous Improvements (v0.1.4-0.1.6)
 
 1. **Enhanced Cell Type Alignment**
    - **NEW**: `cell.type.strategy` parameter for handling missing cell types across conditions
@@ -294,7 +307,7 @@ Use `runCellChat` to automatically create CellChat objects from your Seurat obje
 ```r
 # Create CellChat objects only
 cellchat_list <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",              # Column in metadata with condition labels
   species = "human",                   # "human" or "mouse"
   cell.type.column = "cell_type"       # Column with cell type annotations
@@ -316,7 +329,7 @@ Choose which analyses to run with the `show_plots` parameter:
 ```r
 # Run specific analyses automatically
 results <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human",
   run.analysis = TRUE,                 # Run differential analysis automatically
@@ -333,7 +346,7 @@ results$summary                       # Always included
 
 # Run only pathway ranking
 results <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human",
   run.analysis = TRUE,
@@ -343,7 +356,7 @@ results <- runCellChat(
 
 # Run all available analyses
 results <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human",
   run.analysis = TRUE,
@@ -358,6 +371,76 @@ results <- runCellChat(
 - `"slope"` - Pathway ranking slope plot (rankDiffM)
 - `"scatter"` - Sender-receiver scatter plot (scatterDiff2DM)
 - `"network"` - Network visualization (networkLRDiff)
+
+### Option 3: Customize CellChat Parameters (NEW in v0.1.7!)
+
+`runCellChat` now exposes 39 parameters for complete control over CellChat analysis:
+
+```r
+# Advanced customization with full CellChat parameter control
+results <- runCellChat(
+  seurat_object = pbmc_tutorial,
+  group.by = "condition",
+  species = "human",
+
+  # Data access (Seurat v4/v5 compatible)
+  assay = "RNA",                       # Use specific assay ("RNA", "SCT", etc.)
+  slot.name = "data",                  # Slot/layer to use
+
+  # Database customization
+  db.subset = "Secreted Signaling",    # Focus on specific interaction types
+  # custom.db = my_custom_db,          # Or use custom database
+
+  # Communication probability parameters
+  type = "truncatedMean",              # Computation method
+  trim = 0.2,                          # Trim value
+  population.size = FALSE,             # Don't consider population size
+
+  # Spatial data support (NEW!)
+  distance.use = TRUE,                 # Use spatial distance
+  interaction.range = 500,             # Interaction range
+  scale.distance = 0.02,               # Distance scaling
+  contact.dependent = TRUE,            # Contact-dependent interactions
+
+  # Preprocessing thresholds
+  thresh = 0.1,                        # Expression threshold
+  thresh.pc = 0.15,                    # Percent cells threshold
+  thresh.fc = 0.2,                     # Fold change threshold
+
+  # Filtering parameters
+  min.cells = 15,                      # Minimum cells per cell type
+  rare.keep = TRUE,                    # Keep rare interactions
+
+  # Network analysis
+  compute.centrality = TRUE,           # Compute centrality metrics
+  thresh.centrality = 0.1,             # Centrality threshold
+
+  # Error handling (NEW!)
+  stop.on.error = FALSE,               # Continue if one condition fails
+  verbose.cellchat = FALSE,            # Suppress CellChat messages
+
+  # Return options (NEW!)
+  return.merged = TRUE,                # Return merged object
+  save.raw = TRUE                      # Save pre-aggregation objects
+)
+
+# Access different result components
+results$cellchat_objects$WT           # Individual CellChat object
+results$merged_cellchat               # Merged object (if return.merged = TRUE)
+results$raw_cellchat_objects$WT       # Pre-aggregation object (if save.raw = TRUE)
+```
+
+**Parameter Categories:**
+- **Data Access**: `assay`, `slot.name` - Seurat v4/v5 compatible data extraction
+- **Database**: `db.subset`, `custom.db` - Customize ligand-receptor database
+- **Communication**: `type`, `trim`, `population.size`, `raw.use` - Probability computation
+- **Spatial**: `distance.use`, `interaction.range`, `scale.distance`, `contact.dependent` - Spatial analysis
+- **Preprocessing**: `thresh`, `thresh.pc`, `thresh.fc` - Gene expression thresholds
+- **Filtering**: `min.cells`, `min.samples`, `rare.keep`, `nonFilter.keep` - Communication filtering
+- **Network**: `thresh.centrality`, `compute.centrality` - Centrality analysis
+- **Control**: `stop.on.error`, `return.merged`, `save.raw`, `verbose`, `verbose.cellchat` - Execution control
+
+See `?runCellChat` for complete parameter documentation.
 
 ## Comprehensive Differential Analysis
 
@@ -394,10 +477,10 @@ results$summary$significant_pathways_per_comparison  # Count per comparison
 
 ### Wrapper Functions (Recommended for Most Users)
 
-| Function | Purpose | Key Parameters |
-|----------|---------|----------------|
-| `runCellChat()` | Create CellChat objects from Seurat | `run.analysis`, `group.by`, `species`, `reference` |
-| `compareCell()` | Comprehensive differential analysis | `reference`, `cell.type.strategy`, `show.all`, `show_plots` |
+| Function | Purpose | Key Features |
+|----------|---------|--------------|
+| `runCellChat()` | Create CellChat objects from Seurat | **39 parameters** for complete CellChat control: data access, database customization, spatial support, advanced filtering, error handling, return options |
+| `compareCell()` | Comprehensive differential analysis | Automatic workflow: runs `rankDiffM`, `heatDiffM`, `scatterDiff2DM`, organizes results with summary statistics |
 
 ### Multi-Condition Analysis Functions
 
