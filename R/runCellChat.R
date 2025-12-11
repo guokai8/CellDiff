@@ -18,6 +18,8 @@
 #' @param trim Trim value for truncatedMean method (default: 0.1)
 #' @param raw.use Logical. Whether to use raw data for communication probability (default: TRUE)
 #' @param thresh Threshold for mean expression to define expressed genes in identifyOverExpressedGenes (default: 0.05)
+#' @param thresh.centrality Threshold for computing centrality in netAnalysis_computeCentrality (default: 0.05)
+#' @param compute.centrality Logical. Whether to compute network centrality metrics (default: TRUE)
 #'
 #' @section Differential Analysis Parameters:
 #' @param run.analysis Logical. If TRUE, automatically runs differential analysis after creating CellChat objects (default: FALSE)
@@ -108,11 +110,13 @@
 #'   seurat_object = pbmc,
 #'   group.by = "condition",
 #'   species = "human",
-#'   type = "truncatedMean",     # Use truncated mean instead of triMean
-#'   trim = 0.2,                 # Increase trim value
-#'   thresh = 0.1,               # Higher threshold for expressed genes
-#'   population.size = FALSE,    # Don't consider population size
-#'   min.cells = 5               # Lower minimum cell requirement
+#'   type = "truncatedMean",        # Use truncated mean instead of triMean
+#'   trim = 0.2,                    # Increase trim value
+#'   thresh = 0.1,                  # Higher threshold for expressed genes
+#'   thresh.centrality = 0.1,       # Centrality threshold
+#'   population.size = FALSE,       # Don't consider population size
+#'   compute.centrality = TRUE,     # Compute centrality metrics
+#'   min.cells = 5                  # Lower minimum cell requirement
 #' )
 #' }
 #'
@@ -129,6 +133,8 @@ runCellChat <- function(seurat_object,
                         trim = 0.1,
                         raw.use = TRUE,
                         thresh = 0.05,
+                        thresh.centrality = 0.05,
+                        compute.centrality = TRUE,
                         # Differential analysis parameters
                         run.analysis = FALSE,
                         reference = NULL,
@@ -261,7 +267,13 @@ runCellChat <- function(seurat_object,
     cellchat <- CellChat::aggregateNet(cellchat)
 
     # Compute network centrality (needed for some differential analyses)
-    cellchat <- CellChat::netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+    if (compute.centrality) {
+      cellchat <- CellChat::netAnalysis_computeCentrality(
+        cellchat,
+        slot.name = "netP",
+        thresh = thresh.centrality
+      )
+    }
 
     # Store
     cellchat_list[[cond]] <- cellchat

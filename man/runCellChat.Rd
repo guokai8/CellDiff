@@ -16,6 +16,8 @@ runCellChat(
   trim = 0.1,
   raw.use = TRUE,
   thresh = 0.05,
+  thresh.centrality = 0.05,
+  compute.centrality = TRUE,
   run.analysis = FALSE,
   reference = NULL,
   comparison_method = "all_vs_ref",
@@ -51,6 +53,10 @@ runCellChat(
 \item{raw.use}{Logical. Whether to use raw data for communication probability (default: TRUE)}
 
 \item{thresh}{Threshold for mean expression to define expressed genes in identifyOverExpressedGenes (default: 0.05)}
+
+\item{thresh.centrality}{Threshold for computing centrality in netAnalysis_computeCentrality (default: 0.05)}
+
+\item{compute.centrality}{Logical. Whether to compute network centrality metrics (default: TRUE)}
 
 \item{run.analysis}{Logical. If TRUE, automatically runs differential analysis after creating CellChat objects (default: FALSE)}
 
@@ -165,11 +171,13 @@ results <- runCellChat(
   seurat_object = pbmc,
   group.by = "condition",
   species = "human",
-  type = "truncatedMean",     # Use truncated mean instead of triMean
-  trim = 0.2,                 # Increase trim value
-  thresh = 0.1,               # Higher threshold for expressed genes
-  population.size = FALSE,    # Don't consider population size
-  min.cells = 5               # Lower minimum cell requirement
+  type = "truncatedMean",        # Use truncated mean instead of triMean
+  trim = 0.2,                    # Increase trim value
+  thresh = 0.1,                  # Higher threshold for expressed genes
+  thresh.centrality = 0.1,       # Centrality threshold
+  population.size = FALSE,       # Don't consider population size
+  compute.centrality = TRUE,     # Compute centrality metrics
+  min.cells = 5                  # Lower minimum cell requirement
 )
 }
 
