@@ -12,12 +12,37 @@
 #' @param min.cells Minimum number of cells required per cell type for filtering (default: 10)
 #' @param cell.type.column Column name in metadata containing cell type annotations (default: "cell_type")
 #'
-#' @section CellChat Parameters:
+#' @section Data Access Parameters:
+#' @param assay Assay name to use from Seurat object (default: "RNA"). Can be "SCT", "integrated", or custom assay
+#' @param slot.name For Seurat v4: slot to use ("data", "counts", "scale.data"). For v5: layer name. Default: "data"
+#'
+#' @section Database Parameters:
+#' @param db.subset Character vector to subset CellChatDB. Options: "Secreted Signaling", "ECM-Receptor", "Cell-Cell Contact". NULL uses all (default)
+#' @param custom.db Custom CellChatDB object to use instead of built-in database (default: NULL)
+#'
+#' @section CellChat Communication Parameters:
 #' @param population.size Logical. Whether to consider cell population size in communication strength (default: TRUE)
 #' @param type Method for computing communication probability: "triMean" (default), "truncatedMean", "thresholdedMean", or "median"
 #' @param trim Trim value for truncatedMean method (default: 0.1)
 #' @param raw.use Logical. Whether to use raw data for communication probability (default: TRUE)
-#' @param thresh Threshold for mean expression to define expressed genes in identifyOverExpressedGenes (default: 0.05)
+#' @param distance.use Logical. Use distance information for spatial data (default: TRUE)
+#' @param interaction.range Interaction distance range for spatial data (default: 250)
+#' @param scale.distance Distance scaling factor for spatial data (default: 0.01)
+#' @param contact.dependent Logical. Consider contact-dependent interactions for spatial data (default: TRUE)
+#'
+#' @section CellChat Preprocessing Parameters:
+#' @param thresh Threshold for mean expression (thresh.p in identifyOverExpressedGenes, default: 0.05)
+#' @param thresh.pc Threshold for percent of cells expressing gene (default: 0.1)
+#' @param thresh.fc Fold change threshold for overexpressed genes (default: 0.1)
+#' @param thresh.percent Percent threshold for identifyOverExpressedInteractions (default: 0.1)
+#'
+#' @section CellChat Filtering Parameters:
+#' @param min.cells Minimum number of cells required per cell type (default: 10)
+#' @param min.samples Minimum number of samples for filterCommunication (default: NULL)
+#' @param rare.keep Keep rare interactions in filterCommunication (default: FALSE)
+#' @param nonFilter.keep Keep non-filtered interactions (default: FALSE)
+#'
+#' @section Network Analysis Parameters:
 #' @param thresh.centrality Threshold for computing centrality in netAnalysis_computeCentrality (default: 0.05)
 #' @param compute.centrality Logical. Whether to compute network centrality metrics (default: TRUE)
 #'
@@ -35,7 +60,13 @@
 #'   "scatter" (scatterDiff2DM), "network" (networkLRDiff).
 #'   Default: c("barplot", "heatmap"). Use NULL to run only rankDiffM without plots.
 #' @param top.n Number of top pathways to highlight (default: NULL for all)
+#'
+#' @section Control Parameters:
+#' @param stop.on.error Logical. If FALSE, continues processing other conditions when one fails (default: TRUE)
+#' @param return.merged Logical. If TRUE, returns merged CellChat object in addition to individual objects (default: FALSE)
+#' @param save.raw Logical. If TRUE, saves CellChat objects before aggregation (default: FALSE)
 #' @param verbose Logical. If TRUE, prints progress messages (default: TRUE)
+#' @param verbose.cellchat Logical. If TRUE, shows CellChat function messages (default: FALSE)
 #'
 #' @return If run.analysis = FALSE: A named list of CellChat objects, one for each condition
 #' @return If run.analysis = TRUE: A CellDiffAnalysis object with CellChat objects and analysis results
@@ -125,14 +156,33 @@ runCellChat <- function(seurat_object,
                         group.by,
                         conditions = NULL,
                         species = c("human", "mouse"),
-                        min.cells = 10,
                         cell.type.column = "cell_type",
-                        # CellChat parameters
+                        # Data access parameters
+                        assay = "RNA",
+                        slot.name = "data",
+                        # Database parameters
+                        db.subset = NULL,
+                        custom.db = NULL,
+                        # CellChat communication parameters
                         population.size = TRUE,
                         type = c("triMean", "truncatedMean", "thresholdedMean", "median"),
                         trim = 0.1,
                         raw.use = TRUE,
+                        distance.use = TRUE,
+                        interaction.range = 250,
+                        scale.distance = 0.01,
+                        contact.dependent = TRUE,
+                        # CellChat preprocessing parameters
                         thresh = 0.05,
+                        thresh.pc = 0.1,
+                        thresh.fc = 0.1,
+                        thresh.percent = 0.1,
+                        # CellChat filtering parameters
+                        min.cells = 10,
+                        min.samples = NULL,
+                        rare.keep = FALSE,
+                        nonFilter.keep = FALSE,
+                        # Network analysis parameters
                         thresh.centrality = 0.05,
                         compute.centrality = TRUE,
                         # Differential analysis parameters
@@ -146,7 +196,12 @@ runCellChat <- function(seurat_object,
                         use_log2fc = TRUE,
                         show_plots = c("barplot", "heatmap"),
                         top.n = NULL,
-                        verbose = TRUE) {
+                        # Control parameters
+                        stop.on.error = TRUE,
+                        return.merged = FALSE,
+                        save.raw = FALSE,
+                        verbose = TRUE,
+                        verbose.cellchat = FALSE) {
 
   # Match arguments
   species <- match.arg(species)
@@ -210,19 +265,24 @@ runCellChat <- function(seurat_object,
   }
 
   cellchat_list <- list()
+  raw_cellchat_list <- if (save.raw) list() else NULL
+  failed_conditions <- character()
 
   for (cond in conditions) {
     if (verbose) cat("  Processing condition:", cond, "\n")
 
-    # Subset Seurat object for this condition
-    cells_idx <- seurat_object@meta.data[[group.by]] == cond
-    seurat_subset <- seurat_object[, cells_idx]
+    # Wrap in tryCatch for error handling
+    result <- tryCatch({
 
-    # Extract data using compatibility function
-    data_input <- extractSeuratData(seurat_subset,
-                                     assay = "RNA",
-                                     layer_or_slot = "data")
-    meta_data <- seurat_subset@meta.data
+      # Subset Seurat object for this condition
+      cells_idx <- seurat_object@meta.data[[group.by]] == cond
+      seurat_subset <- seurat_object[, cells_idx]
+
+      # Extract data using compatibility function
+      data_input <- extractSeuratData(seurat_subset,
+                                       assay = assay,
+                                       layer_or_slot = slot.name)
+      meta_data <- seurat_subset@meta.data
 
     # Ensure cell type column is a factor
     if (!is.factor(meta_data[[cell.type.column]])) {
@@ -237,28 +297,106 @@ runCellChat <- function(seurat_object,
     )
 
     # Set ligand-receptor database
-    if (species == "human") {
+    if (!is.null(custom.db)) {
+      # Use custom database
+      CellChatDB <- custom.db
+    } else if (species == "human") {
       CellChatDB <- CellChat::CellChatDB.human
     } else {
       CellChatDB <- CellChat::CellChatDB.mouse
     }
 
+    # Subset database if requested
+    if (!is.null(db.subset)) {
+      CellChatDB <- CellChat::subsetDB(CellChatDB, search = db.subset)
+    }
+
     cellchat@DB <- CellChatDB
 
     # Preprocessing
-    cellchat <- CellChat::subsetData(cellchat)
-    cellchat <- CellChat::identifyOverExpressedGenes(cellchat, thresh.p = thresh)
-    cellchat <- CellChat::identifyOverExpressedInteractions(cellchat)
+    if (!verbose.cellchat) suppressMessages(suppressWarnings({
+      cellchat <- CellChat::subsetData(cellchat)
+    })) else {
+      cellchat <- CellChat::subsetData(cellchat)
+    }
+
+    if (!verbose.cellchat) suppressMessages(suppressWarnings({
+      cellchat <- CellChat::identifyOverExpressedGenes(
+        cellchat,
+        thresh.p = thresh,
+        thresh.pc = thresh.pc,
+        thresh.fc = thresh.fc
+      )
+    })) else {
+      cellchat <- CellChat::identifyOverExpressedGenes(
+        cellchat,
+        thresh.p = thresh,
+        thresh.pc = thresh.pc,
+        thresh.fc = thresh.fc
+      )
+    }
+
+    if (!verbose.cellchat) suppressMessages(suppressWarnings({
+      cellchat <- CellChat::identifyOverExpressedInteractions(
+        cellchat,
+        thresh.percent = thresh.percent
+      )
+    })) else {
+      cellchat <- CellChat::identifyOverExpressedInteractions(
+        cellchat,
+        thresh.percent = thresh.percent
+      )
+    }
+
+    # Save raw object if requested
+    if (save.raw) {
+      raw_cellchat_list[[cond]] <- cellchat
+    }
 
     # Inference
-    cellchat <- CellChat::computeCommunProb(
-      cellchat,
-      type = type,
-      trim = trim,
-      raw.use = raw.use,
-      population.size = population.size
-    )
-    cellchat <- CellChat::filterCommunication(cellchat, min.cells = min.cells)
+    if (!verbose.cellchat) suppressMessages(suppressWarnings({
+      cellchat <- CellChat::computeCommunProb(
+        cellchat,
+        type = type,
+        trim = trim,
+        raw.use = raw.use,
+        population.size = population.size,
+        distance.use = distance.use,
+        interaction.range = interaction.range,
+        scale.distance = scale.distance,
+        contact.dependent = contact.dependent
+      )
+    })) else {
+      cellchat <- CellChat::computeCommunProb(
+        cellchat,
+        type = type,
+        trim = trim,
+        raw.use = raw.use,
+        population.size = population.size,
+        distance.use = distance.use,
+        interaction.range = interaction.range,
+        scale.distance = scale.distance,
+        contact.dependent = contact.dependent
+      )
+    }
+
+    if (!verbose.cellchat) suppressMessages(suppressWarnings({
+      cellchat <- CellChat::filterCommunication(
+        cellchat,
+        min.cells = min.cells,
+        min.samples = min.samples,
+        rare.keep = rare.keep,
+        nonFilter.keep = nonFilter.keep
+      )
+    })) else {
+      cellchat <- CellChat::filterCommunication(
+        cellchat,
+        min.cells = min.cells,
+        min.samples = min.samples,
+        rare.keep = rare.keep,
+        nonFilter.keep = nonFilter.keep
+      )
+    }
 
     # Compute pathway level
     cellchat <- CellChat::computeCommunProbPathway(cellchat)
@@ -268,20 +406,59 @@ runCellChat <- function(seurat_object,
 
     # Compute network centrality (needed for some differential analyses)
     if (compute.centrality) {
-      cellchat <- CellChat::netAnalysis_computeCentrality(
-        cellchat,
-        slot.name = "netP",
-        thresh = thresh.centrality
-      )
+      if (!verbose.cellchat) suppressMessages(suppressWarnings({
+        cellchat <- CellChat::netAnalysis_computeCentrality(
+          cellchat,
+          slot.name = "netP",
+          thresh = thresh.centrality
+        )
+      })) else {
+        cellchat <- CellChat::netAnalysis_computeCentrality(
+          cellchat,
+          slot.name = "netP",
+          thresh = thresh.centrality
+        )
+      }
     }
-
-    # Store
-    cellchat_list[[cond]] <- cellchat
 
     if (verbose) {
       cat("    Cells:", ncol(seurat_subset), "\n")
       cat("    Cell types:", length(unique(meta_data[[cell.type.column]])), "\n")
     }
+
+    # Return the cellchat object
+    cellchat
+
+    }, error = function(e) {
+      # Error handler
+      if (verbose) {
+        cat("    ERROR: Failed to process condition", cond, "\n")
+        cat("    Error message:", e$message, "\n")
+      }
+
+      if (stop.on.error) {
+        stop("Failed to create CellChat object for condition '", cond, "': ", e$message)
+      } else {
+        failed_conditions <<- c(failed_conditions, cond)
+        return(NULL)
+      }
+    })
+
+    # Store if successful
+    if (!is.null(result)) {
+      cellchat_list[[cond]] <- result
+    }
+  }
+
+  # Report failed conditions
+  if (length(failed_conditions) > 0 && verbose) {
+    cat("\nWarning: Failed to process", length(failed_conditions), "condition(s):",
+        paste(failed_conditions, collapse = ", "), "\n")
+  }
+
+  # Check if we have any successful objects
+  if (length(cellchat_list) == 0) {
+    stop("Failed to create CellChat objects for all conditions")
   }
 
   # Print summary
@@ -339,8 +516,47 @@ runCellChat <- function(seurat_object,
       cat("  $summary - Summary statistics\n\n")
     }
 
+    # Add optional merged and raw objects
+    if (return.merged && length(cellchat_list) > 1) {
+      if (verbose) cat("Merging CellChat objects...\n")
+      analysis_results$merged_cellchat <- tryCatch({
+        CellChat::mergeCellChat(cellchat_list, add.names = names(cellchat_list))
+      }, error = function(e) {
+        if (verbose) cat("  Warning: Failed to merge objects:", e$message, "\n")
+        NULL
+      })
+    }
+
+    if (save.raw) {
+      analysis_results$raw_cellchat_objects <- raw_cellchat_list
+    }
+
     return(analysis_results)
   } else {
-    return(cellchat_list)
+    # Create return list
+    result_list <- list(cellchat_objects = cellchat_list)
+
+    # Add optional merged object
+    if (return.merged && length(cellchat_list) > 1) {
+      if (verbose) cat("\nMerging CellChat objects...\n")
+      result_list$merged_cellchat <- tryCatch({
+        CellChat::mergeCellChat(cellchat_list, add.names = names(cellchat_list))
+      }, error = function(e) {
+        if (verbose) cat("  Warning: Failed to merge objects:", e$message, "\n")
+        NULL
+      })
+    }
+
+    # Add optional raw objects
+    if (save.raw) {
+      result_list$raw_cellchat_objects <- raw_cellchat_list
+    }
+
+    # Return based on what's included
+    if (return.merged || save.raw) {
+      return(result_list)
+    } else {
+      return(cellchat_list)
+    }
   }
 }

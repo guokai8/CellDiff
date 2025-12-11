@@ -9,13 +9,27 @@ runCellChat(
   group.by,
   conditions = NULL,
   species = c("human", "mouse"),
-  min.cells = 10,
   cell.type.column = "cell_type",
+  assay = "RNA",
+  slot.name = "data",
+  db.subset = NULL,
+  custom.db = NULL,
   population.size = TRUE,
   type = c("triMean", "truncatedMean", "thresholdedMean", "median"),
   trim = 0.1,
   raw.use = TRUE,
+  distance.use = TRUE,
+  interaction.range = 250,
+  scale.distance = 0.01,
+  contact.dependent = TRUE,
   thresh = 0.05,
+  thresh.pc = 0.1,
+  thresh.fc = 0.1,
+  thresh.percent = 0.1,
+  min.cells = 10,
+  min.samples = NULL,
+  rare.keep = FALSE,
+  nonFilter.keep = FALSE,
   thresh.centrality = 0.05,
   compute.centrality = TRUE,
   run.analysis = FALSE,
@@ -28,7 +42,11 @@ runCellChat(
   use_log2fc = TRUE,
   show_plots = c("barplot", "heatmap"),
   top.n = NULL,
-  verbose = TRUE
+  stop.on.error = TRUE,
+  return.merged = FALSE,
+  save.raw = FALSE,
+  verbose = TRUE,
+  verbose.cellchat = FALSE
 )
 }
 \arguments{
@@ -40,9 +58,15 @@ runCellChat(
 
 \item{species}{Species for CellChatDB: "human" (default) or "mouse"}
 
-\item{min.cells}{Minimum number of cells required per cell type for filtering (default: 10)}
-
 \item{cell.type.column}{Column name in metadata containing cell type annotations (default: "cell_type")}
+
+\item{assay}{Assay name to use from Seurat object (default: "RNA"). Can be "SCT", "integrated", or custom assay}
+
+\item{slot.name}{For Seurat v4: slot to use ("data", "counts", "scale.data"). For v5: layer name. Default: "data"}
+
+\item{db.subset}{Character vector to subset CellChatDB. Options: "Secreted Signaling", "ECM-Receptor", "Cell-Cell Contact". NULL uses all (default)}
+
+\item{custom.db}{Custom CellChatDB object to use instead of built-in database (default: NULL)}
 
 \item{population.size}{Logical. Whether to consider cell population size in communication strength (default: TRUE)}
 
@@ -52,7 +76,29 @@ runCellChat(
 
 \item{raw.use}{Logical. Whether to use raw data for communication probability (default: TRUE)}
 
-\item{thresh}{Threshold for mean expression to define expressed genes in identifyOverExpressedGenes (default: 0.05)}
+\item{distance.use}{Logical. Use distance information for spatial data (default: TRUE)}
+
+\item{interaction.range}{Interaction distance range for spatial data (default: 250)}
+
+\item{scale.distance}{Distance scaling factor for spatial data (default: 0.01)}
+
+\item{contact.dependent}{Logical. Consider contact-dependent interactions for spatial data (default: TRUE)}
+
+\item{thresh}{Threshold for mean expression (thresh.p in identifyOverExpressedGenes, default: 0.05)}
+
+\item{thresh.pc}{Threshold for percent of cells expressing gene (default: 0.1)}
+
+\item{thresh.fc}{Fold change threshold for overexpressed genes (default: 0.1)}
+
+\item{thresh.percent}{Percent threshold for identifyOverExpressedInteractions (default: 0.1)}
+
+\item{min.cells}{Minimum number of cells required per cell type (default: 10)}
+
+\item{min.samples}{Minimum number of samples for filterCommunication (default: NULL)}
+
+\item{rare.keep}{Keep rare interactions in filterCommunication (default: FALSE)}
+
+\item{nonFilter.keep}{Keep non-filtered interactions (default: FALSE)}
 
 \item{thresh.centrality}{Threshold for computing centrality in netAnalysis_computeCentrality (default: 0.05)}
 
@@ -81,7 +127,15 @@ Default: c("barplot", "heatmap"). Use NULL to run only rankDiffM without plots.}
 
 \item{top.n}{Number of top pathways to highlight (default: NULL for all)}
 
+\item{stop.on.error}{Logical. If FALSE, continues processing other conditions when one fails (default: TRUE)}
+
+\item{return.merged}{Logical. If TRUE, returns merged CellChat object in addition to individual objects (default: FALSE)}
+
+\item{save.raw}{Logical. If TRUE, saves CellChat objects before aggregation (default: FALSE)}
+
 \item{verbose}{Logical. If TRUE, prints progress messages (default: TRUE)}
+
+\item{verbose.cellchat}{Logical. If TRUE, shows CellChat function messages (default: FALSE)}
 }
 \value{
 If run.analysis = FALSE: A named list of CellChat objects, one for each condition
@@ -108,11 +162,35 @@ After creating CellChat objects, you can use CellDiff functions for differential
 - Use \code{heatDiffM()} for heatmaps
 - And other CellDiff functions as needed
 }
-\section{CellChat Parameters}{
+\section{Data Access Parameters}{
+
+}
+
+\section{Database Parameters}{
+
+}
+
+\section{CellChat Communication Parameters}{
+
+}
+
+\section{CellChat Preprocessing Parameters}{
+
+}
+
+\section{CellChat Filtering Parameters}{
+
+}
+
+\section{Network Analysis Parameters}{
 
 }
 
 \section{Differential Analysis Parameters}{
+
+}
+
+\section{Control Parameters}{
 
 }
 
