@@ -87,9 +87,12 @@
 #'
 #' @examples
 #' \dontrun{
+#' # Load example data
+#' data(pbmc_tutorial)
+#'
 #' # Option 1: Just create CellChat objects (run.analysis = FALSE, default)
 #' cellchat_list <- runCellChat(
-#'   seurat_object = pbmc,
+#'   seurat_object = pbmc_tutorial,
 #'   group.by = "condition",
 #'   species = "human"
 #' )
@@ -100,7 +103,7 @@
 #'
 #' # Option 2: Run everything automatically (run.analysis = TRUE)
 #' results <- runCellChat(
-#'   seurat_object = pbmc,
+#'   seurat_object = pbmc_tutorial,
 #'   group.by = "condition",
 #'   species = "human",
 #'   run.analysis = TRUE,
@@ -117,7 +120,7 @@
 #'
 #' # Run only specific analyses
 #' results <- runCellChat(
-#'   seurat_object = pbmc,
+#'   seurat_object = pbmc_tutorial,
 #'   group.by = "condition",
 #'   species = "human",
 #'   run.analysis = TRUE,
@@ -127,7 +130,7 @@
 #'
 #' # Run all available analyses
 #' results <- runCellChat(
-#'   seurat_object = pbmc,
+#'   seurat_object = pbmc_tutorial,
 #'   group.by = "condition",
 #'   species = "human",
 #'   run.analysis = TRUE,
@@ -137,7 +140,7 @@
 #'
 #' # Customize CellChat parameters
 #' results <- runCellChat(
-#'   seurat_object = pbmc,
+#'   seurat_object = pbmc_tutorial,
 #'   group.by = "condition",
 #'   species = "human",
 #'   type = "truncatedMean",        # Use truncated mean instead of triMean

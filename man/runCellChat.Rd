@@ -193,9 +193,12 @@ After creating CellChat objects, you can use CellDiff functions for differential
 
 \examples{
 \dontrun{
+# Load example data
+data(pbmc_tutorial)
+
 # Option 1: Just create CellChat objects (run.analysis = FALSE, default)
 cellchat_list <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human"
 )
@@ -206,7 +209,7 @@ heatDiffM(object.list = cellchat_list, reference = "WT")
 
 # Option 2: Run everything automatically (run.analysis = TRUE)
 results <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human",
   run.analysis = TRUE,
@@ -223,7 +226,7 @@ results$summary
 
 # Run only specific analyses
 results <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human",
   run.analysis = TRUE,
@@ -233,7 +236,7 @@ results <- runCellChat(
 
 # Run all available analyses
 results <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human",
   run.analysis = TRUE,
@@ -243,7 +246,7 @@ results <- runCellChat(
 
 # Customize CellChat parameters
 results <- runCellChat(
-  seurat_object = pbmc,
+  seurat_object = pbmc_tutorial,
   group.by = "condition",
   species = "human",
   type = "truncatedMean",        # Use truncated mean instead of triMean
