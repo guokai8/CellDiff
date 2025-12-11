@@ -34,7 +34,6 @@
 #' @param thresh Threshold for mean expression (thresh.p in identifyOverExpressedGenes, default: 0.05)
 #' @param thresh.pc Threshold for percent of cells expressing gene (default: 0.1)
 #' @param thresh.fc Fold change threshold for overexpressed genes (default: 0.1)
-#' @param thresh.percent Percent threshold for identifyOverExpressedInteractions (default: 0.1)
 #'
 #' @section CellChat Filtering Parameters:
 #' @param min.cells Minimum number of cells required per cell type (default: 10)
@@ -176,7 +175,6 @@ runCellChat <- function(seurat_object,
                         thresh = 0.05,
                         thresh.pc = 0.1,
                         thresh.fc = 0.1,
-                        thresh.percent = 0.1,
                         # CellChat filtering parameters
                         min.cells = 10,
                         min.samples = NULL,
@@ -337,15 +335,9 @@ runCellChat <- function(seurat_object,
     }
 
     if (!verbose.cellchat) suppressMessages(suppressWarnings({
-      cellchat <- CellChat::identifyOverExpressedInteractions(
-        cellchat,
-        thresh.percent = thresh.percent
-      )
+      cellchat <- CellChat::identifyOverExpressedInteractions(cellchat)
     })) else {
-      cellchat <- CellChat::identifyOverExpressedInteractions(
-        cellchat,
-        thresh.percent = thresh.percent
-      )
+      cellchat <- CellChat::identifyOverExpressedInteractions(cellchat)
     }
 
     # Save raw object if requested

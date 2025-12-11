@@ -25,7 +25,6 @@ runCellChat(
   thresh = 0.05,
   thresh.pc = 0.1,
   thresh.fc = 0.1,
-  thresh.percent = 0.1,
   min.cells = 10,
   min.samples = NULL,
   rare.keep = FALSE,
@@ -89,8 +88,6 @@ runCellChat(
 \item{thresh.pc}{Threshold for percent of cells expressing gene (default: 0.1)}
 
 \item{thresh.fc}{Fold change threshold for overexpressed genes (default: 0.1)}
-
-\item{thresh.percent}{Percent threshold for identifyOverExpressedInteractions (default: 0.1)}
 
 \item{min.cells}{Minimum number of cells required per cell type (default: 10)}
 
