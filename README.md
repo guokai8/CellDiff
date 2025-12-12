@@ -54,6 +54,34 @@ CellDiff requires the following packages:
 - VennDetail (optional, for Venn diagrams)
 - grid
 
+## What's New in Version 0.1.8
+
+### Critical Fixes
+
+**FIXED: Visualization Rendering Issues in rankDiff()**
+   - **Issue**: Stacked bar plots showed blank spaces when pathways existed in only one experimental group
+   - **Root cause**: ggplot2's `position="fill"` creates rendering artifacts with exact zeros
+   - **Solution**: Added zero replacement (1e-20) after scaling to prevent rendering artifacts while keeping all significant pathways visible
+   - **Impact**: All pathways now render correctly - pathways present in only one group show as solid colored bars
+   - **Files affected**: R/rankDiff.R (line 345), R/rankDiffM.R (lines 610-615, 856)
+
+**FIXED: runCellChat Parameter Defaults**
+   - **Issue**: `runCellChat()` produced different results than manual CellChat pipelines
+   - **Root cause**: Three parameters had incorrect defaults that didn't match CellChat's actual defaults
+   - **Changes made** (R/runCellChat.R):
+     - `population.size`: Changed from `TRUE` → `FALSE` (line 169)
+     - `thresh.pc`: Changed from `0.1` → `0` (line 179)
+     - `thresh.fc`: Changed from `0.1` → `0` (line 180)
+   - **Impact**: `runCellChat()` now produces identical results to manual CellChat workflows
+   - **Breaking change**: If you were using `runCellChat()` before, results will change (but be more correct)
+   - **Migration**: To restore old behavior, explicitly set: `population.size = TRUE, thresh.pc = 0.1, thresh.fc = 0.1`
+
+**IMPROVED: rankDiff() Return Value**
+   - **NEW**: `return.data` parameter to control what is returned
+   - **Default behavior**: Returns plot directly (easier to display)
+   - **With return.data = TRUE**: Returns full list including plot, data, and top pathways
+   - **Example**: `plot <- rankDiff(celllist)` or `results <- rankDiff(celllist, return.data = TRUE)`
+
 ## What's New in Version 0.1.7
 
 ### Major Improvements
@@ -218,6 +246,16 @@ library(CellDiff)
 # Load example data (pre-computed CellChat objects)
 data(celllist)  # Two conditions: NL and LS
 data(cellchatlist)  # Three conditions: WT, KO, DKO
+
+# Pathway ranking (two conditions)
+# Default: returns plot directly
+plot <- rankDiff(object.list = celllist, comparison = c(1, 2))
+
+# With full data access (v0.1.8)
+results <- rankDiff(object.list = celllist, comparison = c(1, 2), return.data = TRUE)
+results$plot           # The plot
+results$data           # Full data table
+results$top_paths      # Top differential pathways
 
 # Compare ligand-receptor contributions
 ContriDiff(object.list = celllist, signaling = "TNF")
@@ -394,7 +432,7 @@ results <- runCellChat(
   # Communication probability parameters
   type = "truncatedMean",              # Computation method
   trim = 0.2,                          # Trim value
-  population.size = FALSE,             # Don't consider population size
+  population.size = FALSE,             # Default: FALSE (matches CellChat)
 
   # Spatial data support (NEW!)
   distance.use = TRUE,                 # Use spatial distance
@@ -402,10 +440,10 @@ results <- runCellChat(
   scale.distance = 0.02,               # Distance scaling
   contact.dependent = TRUE,            # Contact-dependent interactions
 
-  # Preprocessing thresholds
+  # Preprocessing thresholds (v0.1.8: defaults now match CellChat)
   thresh = 0.1,                        # Expression threshold
-  thresh.pc = 0.15,                    # Percent cells threshold
-  thresh.fc = 0.2,                     # Fold change threshold
+  thresh.pc = 0,                       # Default: 0 (matches CellChat)
+  thresh.fc = 0,                       # Default: 0 (matches CellChat)
 
   # Filtering parameters
   min.cells = 15,                      # Minimum cells per cell type
@@ -495,7 +533,7 @@ results$summary$significant_pathways_per_comparison  # Count per comparison
 
 | Function | Purpose | Best For |
 |----------|---------|----------|
-| `rankDiff()` | Pathway ranking (2 conditions) | Simple pairwise comparison |
+| `rankDiff()` | Pathway ranking (2 conditions) | Simple pairwise comparison (use `return.data = TRUE` for full results) |
 | `heatDiff()` | Differential heatmap (2 conditions) | Visualizing sender/receiver changes |
 | `scatterDiff()` | Influence scatter plot | Overall signaling strength |
 | `scatterDiff2D()` | Sender-receiver scatter | Role changes between conditions |
