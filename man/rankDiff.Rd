@@ -17,7 +17,8 @@ rankDiff(
   show.heatmap = TRUE,
   title = NULL,
   sources.use = NULL,
-  targets.use = NULL
+  targets.use = NULL,
+  return.data = FALSE
 )
 }
 \arguments{
@@ -46,9 +47,11 @@ rankDiff(
 \item{sources.use}{Optional vector of source cell types to filter}
 
 \item{targets.use}{Optional vector of target cell types to filter}
+
+\item{return.data}{Logical, whether to return full results list (TRUE) or just the plot (FALSE, default)}
 }
 \value{
-A list containing the ggplot object and data table of results
+By default, returns the ggplot object. If return.data=TRUE, returns a list containing the ggplot object, heatmap, data table, and significant pathways
 }
 \description{
 This function ranks signaling pathways based on their differential activity

@@ -16,14 +16,16 @@
 #' @param title Title for the plot
 #' @param sources.use Optional vector of source cell types to filter
 #' @param targets.use Optional vector of target cell types to filter
+#' @param return.data Logical, whether to return full results list (TRUE) or just the plot (FALSE, default)
 #'
-#' @return A list containing the ggplot object and data table of results
+#' @return By default, returns the ggplot object. If return.data=TRUE, returns a list containing the ggplot object, heatmap, data table, and significant pathways
 #' @export
 rankDiff <- function(object.list, comparison = c(1, 2), measure = "weight",
                      slot.name = "netP", color.use = NULL,
                      pThresh = 0.05, tol = 0.05, top.n = NULL,
                      show.pval = TRUE, show.heatmap = TRUE, title = NULL,
-                     sources.use = NULL, targets.use = NULL) {
+                     sources.use = NULL, targets.use = NULL,
+                     return.data = FALSE) {
 
   if (length(comparison) != 2) {
     stop("Please provide exactly 2 indices for comparison")
@@ -331,8 +333,16 @@ rankDiff <- function(object.list, comparison = c(1, 2), measure = "weight",
   # Order by absolute log2 fold change (most changed first)
   ordered_names <- names(log2_fc)[order(abs(log2_fc), decreasing = TRUE)]
 
-  # Convert name to a factor with your custom order
+  # Convert name to a factor with custom order
   plot_data$name <- factor(plot_data$name, levels = ordered_names)
+
+  min_nonzero <- min(plot_data$contribution[plot_data$contribution > 0])
+  # Compute scale factor so smallest non-zero becomes >= 1e-6
+  scale_factor <- 1e-6 / min_nonzero
+  # Create a scaled value ONLY for plotting
+  plot_data$contribution <- plot_data$contribution * scale_factor
+  # Replace exact zeros with tiny value to prevent rendering artifacts
+  plot_data$contribution[plot_data$contribution == 0] <- 1e-20
 
   # Now create the plot with your ordered factor
   gg <- ggplot2::ggplot(plot_data, ggplot2::aes(x = name, y = contribution, fill = group)) +
@@ -436,12 +446,18 @@ rankDiff <- function(object.list, comparison = c(1, 2), measure = "weight",
   }
 
   # Prepare output
-  results <- list(
-    plot = gg,
-    heatmap = heatmap,
-    data = wide_df,
-    significant_paths = significant_paths
-  )
-
-  return(results)
+  if (return.data) {
+    # Return full results list
+    results <- list(
+      plot = gg,
+      heatmap = heatmap,
+      data = wide_df,
+      significant_paths = significant_paths,
+      plot_data=plot_data
+    )
+    return(results)
+  } else {
+    # Return just the plot by default
+    return(gg)
+  }
 }

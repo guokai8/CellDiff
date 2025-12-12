@@ -606,6 +606,14 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     # Update plot_data with the custom ordering
     plot_data$name <- factor(as.character(plot_data$name), levels = ordered_names)
 
+    # Replace exact zeros with tiny value to prevent rendering artifacts while keeping all pathways
+    min_nonzero <- min(plot_data$contribution[plot_data$contribution > 0])
+    # Compute scale factor so smallest non-zero becomes >= 1e-6
+    scale_factor <- 1e-6 / min_nonzero
+    # Create a scaled value ONLY for plotting
+    plot_data$contribution <- plot_data$contribution * scale_factor
+    plot_data$contribution[plot_data$contribution == 0] <- 1e-20
+
     # Create text colors based on significance and direction
     colors.text <- rep("black", length(ordered_names))
     names(colors.text) <- ordered_names
@@ -848,6 +856,9 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
       # Add comparison label and significance information
       for (path in paths_to_show) {
         path_data <- df_comb_filtered[df_comb_filtered$name == path, ]
+
+        # Replace exact zeros with tiny value to keep all pathways visible
+        path_data$contribution[path_data$contribution == 0] <- 1e-20
 
         if (nrow(path_data) == 0) next
 
