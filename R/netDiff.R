@@ -9,6 +9,7 @@
 #' @param signaling Signaling pathway name
 #' @param thresh Significance threshold for p-values (interactions with p-value > thresh will be set to 0)
 #' @param color.use Vector of colors for increased and decreased interactions
+#' @param cell_color Named vector of colors for cell types (default: NULL, uses global_colors or default palette)
 #' @param title.name Title for the plot
 #' @param sources.use Optional vector of source cell types to include
 #' @param targets.use Optional vector of target cell types to include
@@ -49,7 +50,7 @@
 #' @export
 netDiff <- function(object.list, comparison = c(1, 2), signaling = NULL,
                     thresh = 0.05, color.use = c("darkorange", "deepskyblue"),
-                    title.name = NULL, sources.use = NULL, targets.use = NULL,
+                    cell_color = NULL, title.name = NULL, sources.use = NULL, targets.use = NULL,
                     remove.isolate = FALSE, lab.cex = 0.8, small.gap = 1,
                     big.gap = 10, directional = 0, link.visible = TRUE,
                     link.border = NA, transparency = 0.4, min_weight = 0,
@@ -314,11 +315,35 @@ netDiff <- function(object.list, comparison = c(1, 2), signaling = NULL,
     order.sector <- cells.use
   }
 
-  # Define grid colors - use more modern palette with better contrast
-  default_colors <- colorRampPalette(c(global_colors,"#4E79A7", "#F28E2B", "#E15759", "#76B7B2",
-                                       "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7",
-                                       "#9C755F", "#BAB0AB"))(length(cells.use))
-  grid.col <- setNames(default_colors, cells.use)
+  # Define grid colors for cell types
+  if (!is.null(cell_color)) {
+    # Use user-provided colors
+    # Ensure all cells have colors assigned
+    missing_cells <- setdiff(cells.use, names(cell_color))
+    if (length(missing_cells) > 0) {
+      # Assign default colors to missing cells
+      extra_colors <- colorRampPalette(c("#4E79A7", "#F28E2B", "#E15759", "#76B7B2",
+                                         "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7",
+                                         "#9C755F", "#BAB0AB"))(length(missing_cells))
+      cell_color <- c(cell_color, setNames(extra_colors, missing_cells))
+    }
+    # Only keep colors for cells.use
+    grid.col <- cell_color[cells.use]
+  } else {
+    # Use default palette with better contrast
+    if (exists("global_colors") && length(global_colors) > 0) {
+      # Use global_colors if available
+      default_colors <- colorRampPalette(c(global_colors, "#4E79A7", "#F28E2B", "#E15759", "#76B7B2",
+                                           "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7",
+                                           "#9C755F", "#BAB0AB"))(length(cells.use))
+    } else {
+      # Fallback color palette
+      default_colors <- colorRampPalette(c("#4E79A7", "#F28E2B", "#E15759", "#76B7B2",
+                                           "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7",
+                                           "#9C755F", "#BAB0AB"))(length(cells.use))
+    }
+    grid.col <- setNames(default_colors, cells.use)
+  }
 
   # Define edge colors for positive and negative changes
   if (length(color.use) != 2) {
