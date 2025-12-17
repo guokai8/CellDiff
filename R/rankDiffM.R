@@ -50,6 +50,8 @@
 #'   (FALSE, default) in the comparison_barplot and comparison_heatmap. When TRUE,
 #'   non-significant pathways are shown with faded colors and significance stars
 #'   (*p<0.05, **p<0.01, ***p<0.001) indicate which pathways are significant in each comparison.
+#' @param adjust.pval Logical, whether to adjust p-values for multiple testing (default: FALSE)
+#' @param adjust.method Character, method for p-value adjustment. See ?p.adjust for options (default: "BH" for Benjamini-Hochberg)
 #'
 #' @return A list containing:
 #'   \item{plots}{List of individual barplots for each comparison}
@@ -102,6 +104,15 @@
 #'   show.all = TRUE
 #' )
 #'
+#' # Using p-value adjustment for multiple testing
+#' results <- rankDiffM(
+#'   object.list = cellchat.list,
+#'   comparison_method = "all_vs_ref",
+#'   reference = "WT",
+#'   adjust.pval = TRUE,
+#'   adjust.method = "BH"
+#' )
+#'
 #' @export
 rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
                       measure = "weight", slot.name = "netP", color.use = NULL,
@@ -127,7 +138,9 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
                       label_angle = 45,                 # Angle for x-axis labels
                       border_color = "grey60",          # Border color for tiles in heatmap
                       cell.type.strategy = c("shared", "union"),  # Strategy for aligning cell types
-                      show.all = FALSE) {  # Show all pathways in comparison plots
+                      show.all = FALSE,                 # Show all pathways in comparison plots
+                      adjust.pval = FALSE,              # Adjust p-values for multiple testing
+                      adjust.method = "BH") {           # Method for p-value adjustment
 
   # Load required packages
   require(plyr)
@@ -490,8 +503,12 @@ rankDiffM <- function(object.list, comparison = NULL, reference = NULL,
     # Add p-values to the data frame
     wide_df$pvalues <- p_values[wide_df$name]
 
-    # Apply multiple testing correction
-    wide_df$padj <- p.adjust(wide_df$pvalues, method = "BH")
+    # Apply multiple testing correction if requested
+    if (adjust.pval) {
+      wide_df$padj <- p.adjust(wide_df$pvalues, method = adjust.method)
+    } else {
+      wide_df$padj <- wide_df$pvalues  # No adjustment
+    }
 
     # Identify significant pathways
     significant <- if (use_log2fc) {

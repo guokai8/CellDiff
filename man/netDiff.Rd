@@ -10,6 +10,7 @@ netDiff(
   signaling = NULL,
   thresh = 0.05,
   color.use = c("darkorange", "deepskyblue"),
+  cell_color = NULL,
   title.name = NULL,
   sources.use = NULL,
   targets.use = NULL,
@@ -52,6 +53,8 @@ netDiff(
 \item{thresh}{Significance threshold for p-values (interactions with p-value > thresh will be set to 0)}
 
 \item{color.use}{Vector of colors for increased and decreased interactions}
+
+\item{cell_color}{Named vector of colors for cell types (default: NULL, uses global_colors or default palette)}
 
 \item{title.name}{Title for the plot}
 

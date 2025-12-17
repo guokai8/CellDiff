@@ -507,6 +507,7 @@ alignCellTypes <- function(object.list, indices = NULL, strategy = c("shared", "
       stop("No common cell types found across objects. Consider using strategy='union'")
     }
   } else {
+    # For union strategy, get all unique cell types preserving input order
     aligned_cells <- Reduce(union, cell_types_list)
   }
 

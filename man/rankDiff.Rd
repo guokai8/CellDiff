@@ -18,7 +18,9 @@ rankDiff(
   title = NULL,
   sources.use = NULL,
   targets.use = NULL,
-  return.data = FALSE
+  return.data = FALSE,
+  adjust.pval = FALSE,
+  adjust.method = "BH"
 )
 }
 \arguments{
@@ -49,6 +51,10 @@ rankDiff(
 \item{targets.use}{Optional vector of target cell types to filter}
 
 \item{return.data}{Logical, whether to return full results list (TRUE) or just the plot (FALSE, default)}
+
+\item{adjust.pval}{Logical, whether to adjust p-values for multiple testing (default: FALSE)}
+
+\item{adjust.method}{Character, method for p-value adjustment. See ?p.adjust for options (default: "BH" for Benjamini-Hochberg)}
 }
 \value{
 By default, returns the ggplot object. If return.data=TRUE, returns a list containing the ggplot object, heatmap, data table, and significant pathways

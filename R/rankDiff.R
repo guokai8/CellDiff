@@ -17,6 +17,8 @@
 #' @param sources.use Optional vector of source cell types to filter
 #' @param targets.use Optional vector of target cell types to filter
 #' @param return.data Logical, whether to return full results list (TRUE) or just the plot (FALSE, default)
+#' @param adjust.pval Logical, whether to adjust p-values for multiple testing (default: FALSE)
+#' @param adjust.method Character, method for p-value adjustment. See ?p.adjust for options (default: "BH" for Benjamini-Hochberg)
 #'
 #' @return By default, returns the ggplot object. If return.data=TRUE, returns a list containing the ggplot object, heatmap, data table, and significant pathways
 #' @export
@@ -25,7 +27,9 @@ rankDiff <- function(object.list, comparison = c(1, 2), measure = "weight",
                      pThresh = 0.05, tol = 0.05, top.n = NULL,
                      show.pval = TRUE, show.heatmap = TRUE, title = NULL,
                      sources.use = NULL, targets.use = NULL,
-                     return.data = FALSE) {
+                     return.data = FALSE,
+                     adjust.pval = FALSE,
+                     adjust.method = "BH") {
 
   if (length(comparison) != 2) {
     stop("Please provide exactly 2 indices for comparison")
@@ -247,7 +251,13 @@ rankDiff <- function(object.list, comparison = c(1, 2), measure = "weight",
 
   # Add p-values to the data frame
   wide_df$pvalues <- p_values[wide_df$name]
-  wide_df$padj <- p_values[wide_df$name]  # No adjustment
+
+  # Apply multiple testing correction if requested
+  if (adjust.pval) {
+    wide_df$padj <- p.adjust(wide_df$pvalues, method = adjust.method)
+  } else {
+    wide_df$padj <- wide_df$pvalues  # No adjustment
+  }
 
   # Sort by contribution (keeping original ordering for significance testing)
   wide_df <- wide_df[order(wide_df[[object.names.comparison[1]]], decreasing = TRUE), ]

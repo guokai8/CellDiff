@@ -2,6 +2,56 @@
 
 All notable changes to the CellDiff package will be documented in this file.
 
+## Version 0.1.9 (2025-12-17)
+
+### Added
+
+#### P-value Adjustment Control
+- **NEW `adjust.pval` parameter** for optional multiple testing correction in `rankDiff` and `rankDiffM`
+  - `adjust.pval = FALSE` (default): No p-value adjustment, maintains backward compatibility
+  - `adjust.pval = TRUE`: Applies multiple testing correction
+- **NEW `adjust.method` parameter** to specify correction method
+  - Default: `"BH"` (Benjamini-Hochberg/FDR)
+  - Supports all `p.adjust()` methods: "bonferroni", "holm", "hochberg", "hommel", "BY", "fdr", "none"
+- Users now have full control over when and how to apply p-value adjustment
+- Both `rankDiff` and `rankDiffM` have consistent API for p-value adjustment
+
+### Changed
+
+- **`rankDiff`**: Previously did not adjust p-values; now offers optional adjustment via `adjust.pval` parameter
+- **`rankDiffM`**: Previously always adjusted p-values with BH method; now adjustment is optional via `adjust.pval` parameter
+- Default behavior (`adjust.pval = FALSE`) maintains backward compatibility for both functions
+
+### Technical Details
+
+**Files Modified:**
+- `R/rankDiff.R`:
+  - Lines 20-21: Added parameter documentation for `adjust.pval` and `adjust.method`
+  - Lines 31-32: Added parameters to function signature
+  - Lines 255-260: Conditional p-value adjustment logic
+- `R/rankDiffM.R`:
+  - Lines 53-54: Added parameter documentation for `adjust.pval` and `adjust.method`
+  - Lines 107-115: Added example of using p-value adjustment
+  - Lines 133-134: Added parameters to function signature
+  - Lines 497-502: Conditional p-value adjustment logic
+- `DESCRIPTION`: Updated version to 0.1.9 and date to 2025-12-17
+
+### Usage Examples
+
+```r
+# Without p-value adjustment (default, backward compatible)
+rankDiff(cellchat.list, comparison = c(1, 2))
+rankDiffM(cellchat.list, comparison_method = "all_vs_ref")
+
+# With Benjamini-Hochberg adjustment
+rankDiff(cellchat.list, comparison = c(1, 2), adjust.pval = TRUE)
+rankDiffM(cellchat.list, adjust.pval = TRUE, adjust.method = "BH")
+
+# With Bonferroni correction (more conservative)
+rankDiff(cellchat.list, comparison = c(1, 2),
+         adjust.pval = TRUE, adjust.method = "bonferroni")
+```
+
 ## Version 0.1.4 (2025-12-10)
 
 ### Added

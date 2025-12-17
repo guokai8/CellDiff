@@ -44,7 +44,9 @@ rankDiffM(
   label_angle = 45,
   border_color = "grey60",
   cell.type.strategy = c("shared", "union"),
-  show.all = FALSE
+  show.all = FALSE,
+  adjust.pval = FALSE,
+  adjust.method = "BH"
 )
 }
 \arguments{
@@ -134,6 +136,10 @@ or "sequential" (each group vs next) or "custom_pairs" (specified pairs)}
 (FALSE, default) in the comparison_barplot and comparison_heatmap. When TRUE,
 non-significant pathways are shown with faded colors and significance stars
 (*p<0.05, **p<0.01, ***p<0.001) indicate which pathways are significant in each comparison.}
+
+\item{adjust.pval}{Logical, whether to adjust p-values for multiple testing (default: FALSE)}
+
+\item{adjust.method}{Character, method for p-value adjustment. See ?p.adjust for options (default: "BH" for Benjamini-Hochberg)}
 }
 \value{
 A list containing:
@@ -189,6 +195,15 @@ results <- rankDiffM(
   reference = "WT",
   show_comparison_barplot = TRUE,
   show.all = TRUE
+)
+
+# Using p-value adjustment for multiple testing
+results <- rankDiffM(
+  object.list = cellchat.list,
+  comparison_method = "all_vs_ref",
+  reference = "WT",
+  adjust.pval = TRUE,
+  adjust.method = "BH"
 )
 
 }
