@@ -54,6 +54,38 @@ CellDiff requires the following packages:
 - VennDetail (optional, for Venn diagrams)
 - grid
 
+## What's New in Version 0.2.0
+
+### Critical Fix
+
+**FIXED: Spatial Parameter Error in runCellChat()**
+   - **Issue**: Using `interaction.range` or `contact.dependent` with non-spatial data caused error: "unused argument"
+   - **Root cause**: Spatial parameters were always passed to CellChat, but only valid for spatial transcriptomics data
+   - **Solution**: Spatial parameters now only passed when `distance.use = TRUE`
+   - **Default change**: `distance.use` now defaults to `FALSE` (most users have regular scRNA-seq data)
+
+**Usage for non-spatial data (default):**
+```r
+results <- runCellChat(
+  seurat_object,
+  group.by = "condition",
+  species = "mouse",
+  cell.type.column = "cell_type"
+)
+```
+
+**Usage for spatial transcriptomics data:**
+```r
+results <- runCellChat(
+  spatial_seurat_object,
+  group.by = "condition",
+  species = "mouse",
+  distance.use = TRUE,           # Enable spatial mode
+  interaction.range = 250,       # Now works correctly
+  contact.dependent = TRUE       # Now works correctly
+)
+```
+
 ## What's New in Version 0.1.8
 
 ### Critical Fixes

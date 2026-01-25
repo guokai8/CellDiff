@@ -2,6 +2,97 @@
 
 All notable changes to the CellDiff package will be documented in this file.
 
+## Version 0.2.0 (2025-01-25)
+
+### Fixed
+
+#### Spatial Parameter Bug in runCellChat
+- **FIXED**: `runCellChat()` now correctly handles spatial parameters for non-spatial data
+  - **Issue**: Passing `interaction.range` or `contact.dependent` to non-spatial data caused error: "参数没有用 (unused argument)"
+  - **Root cause**: Spatial parameters were always passed to `computeCommunProb()`, but CellChat only accepts them for spatial transcriptomics data
+  - **Solution**: Spatial parameters are now only passed when `distance.use = TRUE`
+
+### Changed
+
+#### Default Parameter Changes
+- **`distance.use`**: Changed default from `TRUE` to `FALSE`
+  - Most users have regular scRNA-seq data, not spatial transcriptomics
+  - Spatial mode must now be explicitly enabled with `distance.use = TRUE`
+  - This prevents errors when users don't have spatial coordinates
+
+#### Documentation Updates
+- Updated parameter documentation to clarify spatial-only parameters:
+  - `interaction.range`: Only used when `distance.use = TRUE`
+  - `scale.distance`: Only used when `distance.use = TRUE`
+  - `contact.dependent`: Only used when `distance.use = TRUE`
+
+### Technical Details
+
+**Files Modified:**
+- `R/runCellChat.R`:
+  - Line 173: Changed `distance.use` default from `TRUE` to `FALSE`
+  - Lines 28-32: Updated roxygen documentation for spatial parameters
+  - Lines 352-374: Refactored `computeCommunProb` call to use `do.call()` with conditional spatial parameters
+
+**Code Change:**
+```r
+# BEFORE (broken for non-spatial data):
+cellchat <- CellChat::computeCommunProb(
+  cellchat,
+  type = type,
+  trim = trim,
+  raw.use = raw.use,
+  population.size = population.size,
+  distance.use = distance.use,
+  interaction.range = interaction.range,  # Always passed - ERROR!
+  scale.distance = scale.distance,
+  contact.dependent = contact.dependent   # Always passed - ERROR!
+)
+
+# AFTER (works for both spatial and non-spatial):
+commProb_args <- list(
+  object = cellchat,
+  type = type,
+  trim = trim,
+  raw.use = raw.use,
+  population.size = population.size
+)
+
+if (distance.use) {
+  commProb_args$distance.use <- TRUE
+  commProb_args$interaction.range <- interaction.range
+  commProb_args$scale.distance <- scale.distance
+  commProb_args$contact.dependent <- contact.dependent
+}
+
+cellchat <- do.call(CellChat::computeCommunProb, commProb_args)
+```
+
+### Usage Examples
+
+```r
+# Standard scRNA-seq data (most common use case)
+results <- runCellChat(
+  seurat_object,
+  group.by = "condition",
+  species = "mouse",
+  cell.type.column = "cell_type"
+)
+
+# Spatial transcriptomics data (requires spatial coordinates)
+results <- runCellChat(
+  spatial_seurat_object,
+  group.by = "condition",
+  species = "mouse",
+  cell.type.column = "cell_type",
+  distance.use = TRUE,              # Enable spatial mode
+  interaction.range = 250,          # Now accepted
+  contact.dependent = TRUE          # Now accepted
+)
+```
+
+---
+
 ## Version 0.1.9 (2025-12-17)
 
 ### Added

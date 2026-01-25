@@ -25,10 +25,10 @@
 #' @param type Method for computing communication probability: "triMean" (default), "truncatedMean", "thresholdedMean", or "median"
 #' @param trim Trim value for truncatedMean method (default: 0.1)
 #' @param raw.use Logical. Whether to use raw data for communication probability (default: TRUE)
-#' @param distance.use Logical. Use distance information for spatial data (default: TRUE)
-#' @param interaction.range Interaction distance range for spatial data (default: 250)
-#' @param scale.distance Distance scaling factor for spatial data (default: 0.01)
-#' @param contact.dependent Logical. Consider contact-dependent interactions for spatial data (default: TRUE)
+#' @param distance.use Logical. Use distance information for spatial data (default: FALSE). Only set to TRUE for spatial transcriptomics data.
+#' @param interaction.range Interaction distance range for spatial data (default: 250). Only used when distance.use = TRUE.
+#' @param scale.distance Distance scaling factor for spatial data (default: 0.01). Only used when distance.use = TRUE.
+#' @param contact.dependent Logical. Consider contact-dependent interactions for spatial data (default: TRUE). Only used when distance.use = TRUE.
 #'
 #' @section CellChat Preprocessing Parameters:
 #' @param thresh Threshold for mean expression (thresh.p in identifyOverExpressedGenes, default: 0.05)
@@ -170,7 +170,7 @@ runCellChat <- function(seurat_object,
                         type = c("triMean", "truncatedMean", "thresholdedMean", "median"),
                         trim = 0.1,
                         raw.use = TRUE,
-                        distance.use = TRUE,
+                        distance.use = FALSE,
                         interaction.range = 250,
                         scale.distance = 0.01,
                         contact.dependent = TRUE,
@@ -349,30 +349,27 @@ runCellChat <- function(seurat_object,
     }
 
     # Inference
+    # Build computeCommunProb arguments - only include spatial params when distance.use = TRUE
+    commProb_args <- list(
+      object = cellchat,
+      type = type,
+      trim = trim,
+      raw.use = raw.use,
+      population.size = population.size
+    )
+
+    # Add spatial parameters only when distance.use = TRUE
+    if (distance.use) {
+      commProb_args$distance.use <- TRUE
+      commProb_args$interaction.range <- interaction.range
+      commProb_args$scale.distance <- scale.distance
+      commProb_args$contact.dependent <- contact.dependent
+    }
+
     if (!verbose.cellchat) suppressMessages(suppressWarnings({
-      cellchat <- CellChat::computeCommunProb(
-        cellchat,
-        type = type,
-        trim = trim,
-        raw.use = raw.use,
-        population.size = population.size,
-        distance.use = distance.use,
-        interaction.range = interaction.range,
-        scale.distance = scale.distance,
-        contact.dependent = contact.dependent
-      )
+      cellchat <- do.call(CellChat::computeCommunProb, commProb_args)
     })) else {
-      cellchat <- CellChat::computeCommunProb(
-        cellchat,
-        type = type,
-        trim = trim,
-        raw.use = raw.use,
-        population.size = population.size,
-        distance.use = distance.use,
-        interaction.range = interaction.range,
-        scale.distance = scale.distance,
-        contact.dependent = contact.dependent
-      )
+      cellchat <- do.call(CellChat::computeCommunProb, commProb_args)
     }
 
     if (!verbose.cellchat) suppressMessages(suppressWarnings({
