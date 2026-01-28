@@ -37,9 +37,9 @@
 #'
 #' @section CellChat Filtering Parameters:
 #' @param min.cells Minimum number of cells required per cell type (default: 10)
-#' @param min.samples Minimum number of samples for filterCommunication (default: NULL)
-#' @param rare.keep Keep rare interactions in filterCommunication (default: FALSE)
-#' @param nonFilter.keep Keep non-filtered interactions (default: FALSE)
+#' @param min.samples Minimum number of samples for filterCommunication (default: NULL). Requires CellChat >= 2.0
+#' @param rare.keep Keep rare interactions in filterCommunication (default: FALSE). Requires CellChat >= 2.0
+#' @param nonFilter.keep Keep non-filtered interactions (default: FALSE). Requires CellChat >= 2.0
 #'
 #' @section Network Analysis Parameters:
 #' @param thresh.centrality Threshold for computing centrality in netAnalysis_computeCentrality (default: 0.05)
@@ -372,22 +372,19 @@ runCellChat <- function(seurat_object,
       cellchat <- do.call(CellChat::computeCommunProb, commProb_args)
     }
 
+    # Build filterCommunication args - check if newer parameters are supported
+    filter_args <- list(object = cellchat, min.cells = min.cells)
+    filter_formals <- names(formals(CellChat::filterCommunication))
+    if ("min.samples" %in% filter_formals) {
+      filter_args$min.samples <- min.samples
+      filter_args$rare.keep <- rare.keep
+      filter_args$nonFilter.keep <- nonFilter.keep
+    }
+
     if (!verbose.cellchat) suppressMessages(suppressWarnings({
-      cellchat <- CellChat::filterCommunication(
-        cellchat,
-        min.cells = min.cells,
-        min.samples = min.samples,
-        rare.keep = rare.keep,
-        nonFilter.keep = nonFilter.keep
-      )
+      cellchat <- do.call(CellChat::filterCommunication, filter_args)
     })) else {
-      cellchat <- CellChat::filterCommunication(
-        cellchat,
-        min.cells = min.cells,
-        min.samples = min.samples,
-        rare.keep = rare.keep,
-        nonFilter.keep = nonFilter.keep
-      )
+      cellchat <- do.call(CellChat::filterCommunication, filter_args)
     }
 
     # Compute pathway level
